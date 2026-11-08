@@ -79,11 +79,19 @@
   async function load() {
     var my = ++token;
     if (live) { live.close(); live = null; }
-    var ld = $('#loading'); ld.style.display = 'flex'; ld.textContent = 'লোড হচ্ছে…'; setStatus(false);
+    var ld = $('#loading'); ld.style.display = 'flex'; ld.style.background = ''; ld.textContent = 'লোড হচ্ছে…'; setStatus(false);
     var tf = R.TFS.find(function (t) { return t.id === state.tf; }), arr;
     demo = false;
     try { arr = await R.data.klines(state.symbol, state.tf, 1000); }
-    catch (e) { demo = true; arr = R.data.demo(state.symbol, tf.sec, 800); toast('লাইভ ডেটা পাওয়া যায়নি, ডেমো ডেটা দেখানো হচ্ছে'); }
+    catch (e) {
+      /* নকল ক্যান্ডেল দেখানো হয় না: আসল ডেটা না এলে শুধু বার্তা */
+      if (my !== token) return;
+      var nokey = e && e.message === 'NO_KEY';
+      ld.style.background = '#000';
+      ld.innerHTML = (nokey ? '🧮 টুলস ট্যাবে Twelve Data key দাও, তারপর ফরেক্স চার্ট আসবে।' : 'আসল ডেটা আনা যায়নি। ইন্টারনেট চেক করো।') + '<br><br><button class="btn primary" id="retry">আবার চেষ্টা করো</button>';
+      var rb = document.getElementById('retry'); if (rb) rb.onclick = load;
+      return;
+    }
     if (my !== token) return;
     R.chart.setData(arr, tf.sec, state.symbol);
     updatePrice(); legend(R.chart.last());
@@ -148,7 +156,10 @@
         (d.custom ? '<button class="del" data-del="' + id + '" title="মুছো">✕</button>' : '') + '</div>';
     }).join('');
     var box = document.createElement('div'); box.id = 'sheet';
-    box.innerHTML = '<div class="sheet-body"><div class="sheet-h"><b>ইন্ডিকেটর</b><button id="sheet-x">✕</button></div>' + rows +
+    var tzNow = R.chart.tz();
+    box.innerHTML = '<div class="sheet-body"><div class="sheet-h"><b>ইন্ডিকেটর</b><button id="sheet-x">✕</button></div>' +
+      '<div class="row"><label style="flex:1">চার্টের সময় দেখাও</label><select id="tz-sel" style="background:#111;color:#fff;border:1px solid #262626;border-radius:8px;padding:6px 8px">' +
+      '<option value="local"' + (tzNow === 'local' ? ' selected' : '') + '>ফোনের সময়</option><option value="utc"' + (tzNow === 'utc' ? ' selected' : '') + '>UTC</option></select></div>' + rows +
       '<hr><b>নিজের ইন্ডিকেটর যোগ করো</b>' +
       '<p class="hint">নিচে JavaScript লেখো। <code>candles</code> আর <code>ta</code> ব্যবহার করে একটা অ্যারে return করো। সেভ করলেই চার্টে বসে যাবে এবং ফোনে সেভ থাকবে।</p>' +
       '<input type="text" id="c-name" placeholder="ইন্ডিকেটরের নাম" value="My EMA">' +
@@ -163,7 +174,9 @@
       if (del) { IND.removeCustom(del.dataset.del); openSheet(); }
     });
     box.addEventListener('change', function (e) {
-      var t = e.target; if (t.dataset && t.dataset.ind) IND.toggle(t.dataset.ind, t.checked);
+      var t = e.target;
+      if (t.id === 'tz-sel') { R.chart.setTz(t.value); toast(t.value === 'utc' ? 'সময় এখন UTC' : 'সময় এখন ফোনের সময়'); return; }
+      if (t.dataset && t.dataset.ind) IND.toggle(t.dataset.ind, t.checked);
     });
     box.querySelector('#c-save').onclick = function () {
       var res = IND.addCustom({
