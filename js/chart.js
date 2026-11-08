@@ -405,7 +405,7 @@ window.RTX = window.RTX || {};
   }
 
   /* ================= পাবলিক API ================= */
-  function precisionFor(p) { return p >= 1000 ? 2 : p >= 100 ? 3 : p >= 1 ? 4 : p >= 0.1 ? 5 : 6; }
+  function precisionFor(p) { return p >= 1000 ? 2 : p >= 100 ? 3 : p >= 10 ? 4 : p >= 0.1 ? 5 : 6; }
   function volPoint(c) { return { time: c.time, value: c.volume, color: c.close >= c.open ? 'rgba(41,121,255,0.45)' : 'rgba(255,255,255,0.35)' }; }
   function showRecent(n) {
     var w = wrap.clientWidth || 360, bars = Math.max(30, Math.floor(w / 8));
@@ -502,6 +502,7 @@ window.RTX = window.RTX || {};
     candles: function () { return candles; },
     fmt: function (p) { return Number(p).toFixed(prec); },
     goLatest: function () { chart.timeScale().scrollToRealTime(); },
+    raw: function () { return chart; },
 
     drawing: {
       setTool: function (t) {
