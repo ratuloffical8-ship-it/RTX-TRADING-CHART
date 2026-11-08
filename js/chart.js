@@ -8,6 +8,27 @@ window.RTX = window.RTX || {};
   var pad = function (n) { return String(n).padStart(2, '0'); };
   var FIB = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1];
 
+  /* সময় দেখানোর ধরন: ফোনের সময় বা UTC */
+  var TZ = (function () { try { return JSON.parse(localStorage.getItem('rtx_tz')) === 'utc' ? 'utc' : 'local'; } catch (_) { return 'local'; } })();
+  var overlayFn = null;
+  function dparts(t) {
+    var d = new Date(t * 1000);
+    return TZ === 'utc'
+      ? { Y: d.getUTCFullYear(), M: d.getUTCMonth(), D: d.getUTCDate(), h: d.getUTCHours(), m: d.getUTCMinutes() }
+      : { Y: d.getFullYear(), M: d.getMonth(), D: d.getDate(), h: d.getHours(), m: d.getMinutes() };
+  }
+  function tickFmt(t, type) {
+    var p = dparts(t);
+    if (type === 0) return String(p.Y);
+    if (type === 1) return MON[p.M];
+    if (type === 2) return String(p.D);
+    return pad(p.h) + ':' + pad(p.m);
+  }
+  function timeFmt(t) {
+    var p = dparts(t);
+    return p.D + ' ' + MON[p.M] + " '" + String(p.Y).slice(2) + '  ' + pad(p.h) + ':' + pad(p.m) + (TZ === 'utc' ? ' UTC' : '');
+  }
+
   var chart, candle, vol, wrap, canvas, ctx;
   var candles = [], tfSec = 60, prec = 2;
   var hoverCb = function () {}, moreCb = function () {}, toolCb = function () {};
@@ -309,6 +330,11 @@ window.RTX = window.RTX || {};
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, w, h);
     ctx.save(); ctx.beginPath(); ctx.rect(0, 0, plotW(), plotH()); ctx.clip();
+    if (overlayFn) {
+      ctx.save();
+      try { overlayFn(ctx, { X: X, Y: Y, W: plotW(), H: plotH() }); } catch (_) {}
+      ctx.restore();
+    }
     DR.items.forEach(drawItem);
     if (DR.temp) drawItem(DR.temp);
     if (DR.draft) drawItem(DR.draft);
@@ -416,13 +442,7 @@ window.RTX = window.RTX || {};
     indicators: IND, ta: ta,
     init: function (container) {
       wrap = container.parentElement;
-      var tick = function (t, type) {
-        var d = new Date(t * 1000);
-        if (type === 0) return String(d.getFullYear());
-        if (type === 1) return MON[d.getMonth()];
-        if (type === 2) return String(d.getDate());
-        return pad(d.getHours()) + ':' + pad(d.getMinutes());
-      };
+      var tick = tickFmt;
       chart = LightweightCharts.createChart(container, {
         autoSize: true,
         layout: { background: { type: 'solid', color: C.bg }, textColor: C.text, fontSize: 11 },
@@ -434,9 +454,7 @@ window.RTX = window.RTX || {};
         },
         rightPriceScale: { borderColor: C.border, scaleMargins: { top: 0.08, bottom: 0.2 } },
         timeScale: { borderColor: C.border, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 7, minBarSpacing: 1.5, tickMarkFormatter: tick },
-        localization: {
-          timeFormatter: function (t) { var d = new Date(t * 1000); return d.getDate() + ' ' + MON[d.getMonth()] + " '" + String(d.getFullYear()).slice(2) + '  ' + pad(d.getHours()) + ':' + pad(d.getMinutes()); }
-        },
+        localization: { timeFormatter: timeFmt },
         handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
         handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
         kineticScroll: { touch: true, mouse: false }
@@ -503,6 +521,15 @@ window.RTX = window.RTX || {};
     fmt: function (p) { return Number(p).toFixed(prec); },
     goLatest: function () { chart.timeScale().scrollToRealTime(); },
     raw: function () { return chart; },
+    setOverlay: function (fn) { overlayFn = fn; DR.rev++; },
+    redraw: function () { DR.rev++; },
+    setMarkers: function (m) { try { candle.setMarkers(m || []); } catch (_) {} },
+    tz: function () { return TZ; },
+    setTz: function (mode) {
+      TZ = mode === 'utc' ? 'utc' : 'local';
+      try { localStorage.setItem('rtx_tz', JSON.stringify(TZ)); } catch (_) {}
+      if (chart) chart.applyOptions({ timeScale: { tickMarkFormatter: tickFmt }, localization: { timeFormatter: timeFmt } });
+    },
 
     drawing: {
       setTool: function (t) {
