@@ -1,0 +1,16 @@
+{
+  "name": "RTX Chart",
+  "short_name": "RTX Chart",
+  "description": "ট্রেডিং শেখার জন্য স্মুথ ডার্ক চার্ট",
+  "lang": "bn",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
