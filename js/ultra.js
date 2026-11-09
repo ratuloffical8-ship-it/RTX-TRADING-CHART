@@ -13,7 +13,7 @@ window.RTX = window.RTX || {};
     slBuf: 0.25, slMinAtr: 0.6, slMaxAtr: 3, tp1R: 1, tp2R: 2, tp3R: 3,
     balance: 1000, riskPct: 1, useSess: true, volFilter: true, volLow: 0.5, volHigh: 3,
     showHist: true, maxHist: 10,
-    power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true
+    power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true, autoOpt: true
   };
   var ENG = ['Sweep Reclaim', 'CRT + TBS', 'Wyckoff + ICT', 'QM + SMC', 'Price Action + Fib'];
   var SHORT = { 'Sweep Reclaim': 'Sweep', 'CRT + TBS': 'CRT', 'Wyckoff + ICT': 'Wyckoff', 'QM + SMC': 'QM', 'Price Action + Fib': 'Fib' };
@@ -360,6 +360,9 @@ window.RTX = window.RTX || {};
   ];
 
   var cfg = Object.assign({}, DEF, lsGet('rtx_ultra_cfg', {}));
+  var optStore = lsGet('rtx_ultra_opt', {});
+  function optKey() { return cur.sym + '|' + cur.sec; }
+  function effCfg() { var o = cfg.autoOpt && optStore[optKey()]; return o ? Object.assign({}, cfg, o) : cfg; }
   var cur = { sym: null, sec: 60 }, state = { res: null, warn: '' }, htfStore = {}, tm = 0, lastN = 0, seenKey = '', seen = {};
 
   /* ---------- HTF ডেটা (4H, 1H, দৈনিক) ---------- */
@@ -379,7 +382,7 @@ window.RTX = window.RTX || {};
   function sched(ms, silent) { clearTimeout(tm); tm = setTimeout(function () { recompute(silent); }, ms || 0); }
 
   function recompute(silent) {
-    var info = marketInfo(cur.sym);
+    var info = marketInfo(cur.sym), ec = effCfg();
     if (!cfg.on) { R.chart.setMarkers([]); R.chart.setOverlay(null); state.res = null; state.warn = ''; paint(); return; }
     var all = R.chart.candles();
     if (all.length < 70) { state.res = null; R.chart.setMarkers([]); R.chart.setOverlay(null); paint(); return; }
@@ -387,13 +390,13 @@ window.RTX = window.RTX || {};
     if (!h.h4 && !h.h1) { if (mode !== 'Off' && cur.sec < 14400) warn = 'HTF (4H/1H) ডেটা পাওয়া যায়নি, তাই এখন HTF ফিল্টার ছাড়াই চলছে।'; if (cur.sec < 14400) mode = 'Off'; }
     state.warn = warn;
     var res;
-    try { res = engine(all.slice(0, all.length - 1), h, cfg, info, cur.sec, mode); }
+    try { res = engine(all.slice(0, all.length - 1), h, ec, info, cur.sec, mode); }
     catch (e) { say('ULTRA ত্রুটি: ' + e.message); return; }
     if (cfg.power && R.power) {
-      try { res = R.power.run(all.slice(0, all.length - 1), res, cfg, info, cur.sec, mode); }
+      try { res = R.power.run(all.slice(0, all.length - 1), res, ec, info, cur.sec, mode); }
       catch (e) { say('POWER ত্রুটি: ' + e.message); return; }
     }
-    state.res = res; state.info = info;
+    state.res = res; state.info = info; state.cfg = ec;
 
     R.chart.setMarkers(res.trades.map(function (t) {
       var b = t.dir === 1;
@@ -472,10 +475,11 @@ window.RTX = window.RTX || {};
     if (!cfg.on) return '<div class="card muted">ULTRA বন্ধ আছে। চালু করতে উপরের বাক্সে টিক দাও।</div>';
     var res = state.res;
     if (!res) return '<div class="card muted">ডেটা লোড হচ্ছে বা ক্যান্ডেল কম (কমপক্ষে ৭০টি লাগে)।</div>';
-    var info = state.info, now = res.now, t = res.trades[res.trades.length - 1], lc = R.chart.last();
+    var info = state.info, now = res.now, t = res.trades[res.trades.length - 1], lc = R.chart.last(), C = state.cfg || cfg;
     var f = function (p) { return Number(p).toFixed(info.dec); }, pip = function (d) { return (Math.abs(d) / info.pip).toFixed(1) + 'p'; };
     var live = t && t.status >= 1 && t.status <= 3;
     var h = '';
+    if (cfg.autoOpt && optStore[optKey()]) h += '<div class="note-info" style="margin:0 0 8px">🎯 এই মার্কেট/টাইমফ্রেমের অটো-সেটআপ চালু আছে (SL, TP, ভোট বদলানো)।</div>';
     if (state.warn) h += '<div class="note-warn" style="margin:0 0 8px">' + esc(state.warn) + '</div>';
     h += '<div class="card">' +
       kv('Symbol', esc(info.sym) + ' | ' + esc(info.name)) + kv('Market Price', lc ? f(lc.close) : '-') +
@@ -488,10 +492,10 @@ window.RTX = window.RTX || {};
       h += kv('Mode', esc(t.mode)) + kv('Confluence', t.extra ? esc(t.extra) : 'none extra') + kv('Grade / Score', esc(t.grade) + ' / ' + t.score + '/100') +
         kv('Entry', f(t.entry)) + kv('SL', f(t.slNow) + (t.beMoved ? ' (BE)' : ' (' + pip(t.entry - t.sl) + ')'), 'dn') +
         kv('TP1', f(t.tp1) + ' (' + pip(t.tp1 - t.entry) + ')', 'up') + kv('TP2', f(t.tp2) + ' (' + pip(t.tp2 - t.entry) + ')', 'up') + kv('TP3', f(t.tp3) + ' (' + pip(t.tp3 - t.entry) + ')', 'up') +
-        kv('RR (to TP2)', '1:' + cfg.tp2R) + kv('Lot (risk ' + cfg.riskPct + '%)', t.lot === null ? 'n/a' : t.lot.toFixed(2) + ' lot = $' + t.riskUsd.toFixed(2)) +
+        kv('RR (to TP3)', '1:' + C.tp3R) + kv('Lot (risk ' + C.riskPct + '%)', t.lot === null ? 'n/a' : t.lot.toFixed(2) + ' lot = $' + t.riskUsd.toFixed(2)) +
         kv('Status', STAT[t.status], live ? 'up' : '');
     }
-    h += kv('Filters', (now.volOK ? 'Vol OK' : 'Vol OFF') + ' | HTF ' + cfg.htfMode + ' | Min ' + cfg.minScore) + '</div>';
+    h += kv('Filters', (now.volOK ? 'Vol OK' : 'Vol OFF') + ' | HTF ' + C.htfMode + ' | Min ' + (C.power ? C.pwMinScore : C.minScore)) + '</div>';
     var tot = res.trades.length, tp1 = 0, sl = 0, be = 0, run = 0;
     res.trades.forEach(function (x) { if (x.tp1Hit) tp1++; if (x.status === 5) sl++; if (x.status === 6) be++; if (x.status >= 1 && x.status <= 3) run++; });
     h += '<div class="card">' + kv('লোড করা চার্টে মোট সিগন্যাল', String(tot)) + kv('TP1 ছুঁয়েছে', tp1 + ' / ' + tot) + kv('SL হিট', String(sl)) + kv('ব্রেক-ইভেন', String(be)) + kv('চলমান', String(run)) +
@@ -515,12 +519,48 @@ window.RTX = window.RTX || {};
     return '<div class="fgrid">' + grid + '</div>' + rows;
   }
 
+
+  /* ---------- অটো-সেটআপ ---------- */
+  var lastOpt = null, optBusy = false;
+  async function runOpt() {
+    var out = $('ul-optres'); if (!out || optBusy) return;
+    optBusy = true; var sym = cur.sym, sec = cur.sec, key = optKey();
+    try {
+      out.innerHTML = '<div class="note-info">ইতিহাস লোড হচ্ছে…</div>';
+      var all = R.chart.candles().slice(0, -1), pages = 0;
+      while (pages < 4 && all.length) {
+        var more = await R.data.klines(sym, R.TFS.filter(function (t) { return t.sec === sec; })[0].id, 1000, all[0].time * 1000 - 1).catch(function () { return []; });
+        more = more.filter(function (c) { return c.time < all[0].time; });
+        if (!more.length) break; all = more.concat(all); pages++;
+      }
+      if (all.length < 600) { out.innerHTML = '<div class="note-warn">ক্যান্ডেল মাত্র ' + all.length + 'টি পাওয়া গেছে, ভালো যাচাইয়ের জন্য কমপক্ষে ৬০০ দরকার।</div>'; optBusy = false; return; }
+      var h = htfStore[sym] || { h4: null, h1: null, d: null }, mode = cfg.htfMode;
+      if (!h.h4 && !h.h1 && sec < 14400) mode = 'Off';
+      var res = await R.opt.search(all, h, cfg, marketInfo(sym), sec, mode, function (p) { out.innerHTML = '<div class="note-info">খোঁজা হচ্ছে… ' + Math.round(p * 100) + '%</div>'; });
+      lastOpt = res;
+      var f1 = function (x) { return x.toFixed(0) + '%'; };
+      var html = '<div class="note-info">' + res.bars + ' ক্যান্ডেল · ' + res.tested + 'টি সেটিং পরীক্ষা · ট্রেনিংয়ে টিকেছে ' + res.passedTrain + 'টি</div>';
+      if (!res.top.length) html += '<div class="note-warn">এই মার্কেট/টাইমফ্রেমে এমন কোনো সেটিং পাওয়া যায়নি যা লাভজনক ছিল। এখানে ট্রেড না করাই ভালো, অন্য টাইমফ্রেম বা মার্কেট দেখো।</div>';
+      res.top.forEach(function (r, i) {
+        html += '<div class="card"><b>' + esc(r.label) + '</b>' +
+          kv('ট্রেনিং', r.train.n + ' ট্রেড · TP3 ' + f1(r.train.hit3) + ' · SL ' + f1(r.train.n ? r.train.sl / r.train.n * 100 : 0) + ' · ' + r.train.exp.toFixed(2) + 'R') +
+          kv('টেস্ট (অদেখা)', r.test.n + ' ট্রেড · TP3 ' + f1(r.test.hit3) + ' · SL ' + f1(r.test.n ? r.test.sl / r.test.n * 100 : 0) + ' · ' + r.test.exp.toFixed(2) + 'R', r.reliable ? 'up' : 'dn') +
+          (r.reliable ? '' : '<div class="note-warn">টেস্টে টেকেনি বা ট্রেড খুব কম, নির্ভরযোগ্য নয়।</div>') +
+          '<div class="btnrow"><button class="btn" data-apply="' + i + '">এটা বসাও</button></div></div>';
+      });
+      html += '<div class="note-info">অনেক সেটিং থেকে সেরাটা বাছলে ভাগ্যের প্রভাব থাকে, তাই টেস্টের সংখ্যাই আসল। ৭০%+ TP3 হিট সাধারণত পাওয়া যায় না, আর কোনো সেটিং ভবিষ্যতের গ্যারান্টি দেয় না। ডেমোতে যাচাই না করে আসল টাকায় ট্রেড কোরো না।</div>';
+      if (cur.sym === sym && cur.sec === sec) out.innerHTML = html;
+    } catch (e) { out.innerHTML = '<div class="note-warn">ত্রুটি: ' + esc(e.message) + '</div>'; }
+    optBusy = false;
+  }
+
   function closeSheet() { var s = $('ul-sheet'); if (s) s.remove(); }
   function openSheet() {
     closeSheet();
     var box = document.createElement('div'); box.id = 'ul-sheet';
     box.innerHTML = '<div class="sheet-body"><div class="sheet-h"><b>⚡ RTX ULTRA PRO MAX</b><button id="ul-x">✕</button></div>' +
       '<div class="row"><label><input type="checkbox" id="ul-on"' + (cfg.on ? ' checked' : '') + '><span>চার্টে ULTRA সিগন্যাল চালু</span></label></div>' +
+      '<div class="card"><b>🎯 অটো-সেটআপ</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মার্কেট ও টাইমফ্রেমে আগের ডেটায় সেরা সেটিং খুঁজে শেষ ৩৫% ডেটায় যাচাই করে দেখায়।</div><div class="btnrow"><button class="btn primary" id="ul-opt">খোঁজো</button><button class="btn" id="ul-optoff">অটো-সেটআপ মুছো</button></div><div id="ul-optres"></div></div>' +
       '<div id="ul-dash"></div>' +
       '<details class="fold"><summary>⚙️ সেটিংস</summary><div class="fbody" id="ul-cfg">' + fieldsHtml() +
       '<div class="btnrow"><button class="btn" id="ul-reset">ডিফল্টে ফেরাও</button></div></div></details>' +
@@ -528,6 +568,9 @@ window.RTX = window.RTX || {};
     document.body.appendChild(box);
     paint();
     box.addEventListener('click', function (e) {
+      if (e.target.id === 'ul-opt') { runOpt(); return; }
+      if (e.target.id === 'ul-optoff') { delete optStore[optKey()]; lsSet('rtx_ultra_opt', optStore); $('ul-optres').innerHTML = '<div class="note-info">এই মার্কেটের অটো-সেটআপ মুছে গেছে।</div>'; sched(0, true); return; }
+      if (e.target.dataset && e.target.dataset.apply !== undefined) { var r = lastOpt.top[+e.target.dataset.apply]; if (r) { optStore[optKey()] = r.cfg; lsSet('rtx_ultra_opt', optStore); say('অটো-সেটআপ বসানো হয়েছে'); sched(0, true); } return; }
       if (e.target === box || e.target.id === 'ul-x') { closeSheet(); return; }
       if (e.target.id === 'ul-reset') { cfg = Object.assign({}, DEF); lsSet('rtx_ultra_cfg', cfg); $('ul-cfg').innerHTML = fieldsHtml() + '<div class="btnrow"><button class="btn" id="ul-reset">ডিফল্টে ফেরাও</button></div>'; $('ul-on').checked = cfg.on; sched(0, true); }
     });
