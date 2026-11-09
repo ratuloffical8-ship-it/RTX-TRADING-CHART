@@ -201,10 +201,16 @@ window.RTX = window.RTX || {};
   function run(cs, base, cfg, info, tfSec, htfMode) {
     var P = (base._pw && base._pw.n === cs.length && base._pw.tf === tfSec) ? base._pw : (base._pw = prep(cs, base, info, tfSec));
     var n = P.n, i, k, A = P.A, O = P.O, H = P.H, L = P.L, C = P.C, V = P.V, T = P.T, atr = P.atr, atrAvg = P.atrAvg, h4 = P.h4, h1 = P.h1, ct = P.ct;
-    var XL = P.XL, xl = P.xl, xlN = P.xlN, ut = P.ut, jd = P.jd, st = P.st, ule = P.ule, e100 = P.e100, vw = P.vw, haC = P.haC, haO = P.haO;
+    var XL = P.XL, xl = Z(n), xlN = new Array(n), ut = P.ut, jd = P.jd, st = P.st, ule = P.ule, e100 = P.e100, vw = P.vw, haC = P.haC, haO = P.haO;
     var mt = info.mintick, dec = info.dec;
     function rt(x) { return +(Math.round(x / mt) * mt).toFixed(dec); }
 
+    var xon = [cfg.xOC !== false, cfg.xBrk !== false, cfg.xDon !== false, cfg.xMA !== false, cfg.xST !== false, cfg.xAr !== false];
+    for (i = 0; i < n; i++) {
+      var xs = 0, xm = [];
+      for (k = 0; k < 6; k++) if (xon[k] && XL[k][1][i] !== 0) { xs += XL[k][1][i]; xm.push(XL[k][0]); }
+      xl[i] = xs > 0 ? 1 : xs < 0 ? -1 : 0; xlN[i] = xm;
+    }
     var enG = [!!cfg.gUltra, !!cfg.gXl, !!cfg.gUt, !!cfg.gJdt], gArr = [ule, xl, ut, jd], gName = ['ULTRA', 'XL', 'UT Bot', 'JDT ST'];
     var win = Math.max(1, cfg.pwWin | 0), minV = Math.max(1, Math.min(4, cfg.pwVotes | 0));
     var trades = [], cur = null, lastSig = -100000, sigBars = Z(n);
@@ -304,13 +310,14 @@ window.RTX = window.RTX || {};
   'use strict';
   if (typeof document === 'undefined') return;
   var sec = document.getElementById('view-tv'); if (!sec) return;
+  var st = document.createElement('style'); st.textContent = '#view-tv.active{display:flex;flex-direction:column;overflow:hidden;background:#000}#view-tv .tradingview-widget-container{flex:1;min-height:0}'; document.head.appendChild(st);
   var DEFAULT = 'OANDA:XAUUSD', loaded = false;
   function sym() { try { return localStorage.getItem('rtx_tv_sym') || DEFAULT; } catch (_) { return DEFAULT; } }
   function build() {
     var s = sym();
     sec.innerHTML = '<div class="row" style="padding:8px;display:flex;gap:6px"><input id="tv-sym" style="flex:1" value="' + s.replace(/"/g, '') + '" placeholder="OANDA:XAUUSD"><button class="btn" id="tv-go">লোড</button></div>' +
       '<div style="padding:0 8px 6px;font-size:12px;color:#8b8b8b">উদাহরণ: OANDA:XAUUSD · FX:EURUSD · BINANCE:BTCUSDT · TVC:DXY। এটা TradingView-এর নিজের চার্ট, তাই ক্যান্ডেল একদম অরিজিনাল। তবে আমাদের সিগন্যাল এর ওপর আঁকা যায় না। সিগন্যাল দেখতে "চার্ট" ট্যাবে BINANCE সিম্বল ব্যবহার করো।</div>' +
-      '<div id="tv-box" class="tradingview-widget-container" style="height:calc(100% - 90px);min-height:420px"></div>';
+      '<div id="tv-box" class="tradingview-widget-container"></div>';
     var box = document.getElementById('tv-box'), inner = document.createElement('div');
     inner.className = 'tradingview-widget-container__widget'; inner.style.height = '100%'; box.appendChild(inner);
     var sc = document.createElement('script'); sc.async = true;
