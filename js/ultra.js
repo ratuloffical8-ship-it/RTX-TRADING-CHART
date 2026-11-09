@@ -12,12 +12,13 @@ window.RTX = window.RTX || {};
     swingLen: 3, sweepWin: 6, wyMaxAtr: 10, qmMaxAge: 40, fibMinAtr: 2.5, fibMaxAge: 60,
     slBuf: 0.25, slMinAtr: 0.6, slMaxAtr: 3, tp1R: 1, tp2R: 2, tp3R: 3,
     balance: 1000, riskPct: 1, useSess: true, volFilter: true, volLow: 0.5, volHigh: 3,
-    showHist: true, maxHist: 10
+    showHist: true, maxHist: 10,
+    power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true
   };
   var ENG = ['Sweep Reclaim', 'CRT + TBS', 'Wyckoff + ICT', 'QM + SMC', 'Price Action + Fib'];
   var SHORT = { 'Sweep Reclaim': 'Sweep', 'CRT + TBS': 'CRT', 'Wyckoff + ICT': 'Wyckoff', 'QM + SMC': 'QM', 'Price Action + Fib': 'Fib' };
   var STAT = { 0: 'NONE', 1: 'ACTIVE', 2: 'TP1 HIT', 3: 'TP2 HIT', 4: 'TP3 HIT', 5: 'SL HIT', 6: 'BREAK-EVEN', 7: 'REPLACED' };
-  var MINTICK = { BTCUSDT: 0.01, ETHUSDT: 0.01, BNBUSDT: 0.01, SOLUSDT: 0.01, XRPUSDT: 0.0001, DOGEUSDT: 0.00001, ADAUSDT: 0.0001, LTCUSDT: 0.01 };
+  var MINTICK = { BTCUSDT: 0.01, ETHUSDT: 0.01, BNBUSDT: 0.01, SOLUSDT: 0.01, XRPUSDT: 0.0001, DOGEUSDT: 0.00001, ADAUSDT: 0.0001, LTCUSDT: 0.01, XAUUSDT: 0.01, PAXGUSDT: 0.01 };
 
   function nn(v) { return v !== null && v !== undefined && !isNaN(v); }
 
@@ -143,6 +144,7 @@ window.RTX = window.RTX || {};
     var lastFvgBull = null, lastFvgBear = null;
     var swBullBar = null, swBullLvl = null, swBullExt = null, swBearBar = null, swBearLvl = null, swBearExt = null;
     var lastSigBar = -100000, cur = null, trades = [];
+    var rawDir = new Array(n).fill(0), rawLvl = new Array(n).fill(null);
 
     for (i = 0; i < n; i++) {
       var a = atr[i];
@@ -258,6 +260,8 @@ window.RTX = window.RTX || {};
       var bullCnt = 0, bearCnt = 0;
       for (k = 0; k < 5; k++) { if (bF[k]) bullCnt++; if (sF[k]) bearCnt++; }
       var dir = bullCnt > bearCnt ? 1 : bearCnt > bullCnt ? -1 : 0;
+      rawDir[i] = dir;
+      if (dir !== 0) { var fa0 = dir === 1 ? bF : sF, la0 = dir === 1 ? bLv : sLv; rawLvl[i] = fa0[3] ? la0[3] : fa0[2] ? la0[2] : fa0[1] ? la0[1] : fa0[0] ? la0[0] : la0[4]; }
 
       // D) নতুন সিগন্যাল
       var live = cur && cur.status >= 1 && cur.status <= 3;
@@ -313,6 +317,7 @@ window.RTX = window.RTX || {};
     var li = n - 1, last = n ? sessOf(T[li], tfSec, info, cfg) : { ok: false, name: '-' };
     return {
       trades: trades, closed: n,
+      arr: { atr: atr, atrAvg: atrAvg, h4: h4, h1: h1, ct: ct, rawDir: rawDir, rawLvl: rawLvl },
       now: n ? {
         h4: h4[li], h1: h1[li], trend: ct[li], sessOk: last.ok, sessName: last.name,
         atr: atr[li], atrAvg: atrAvg[li],
@@ -321,7 +326,7 @@ window.RTX = window.RTX || {};
     };
   }
 
-  R.ultra = { DEF: DEF, engine: engine, stepTrade: stepTrade, marketInfo: marketInfo, emaPine: emaPine, biasOf: biasOf, lastLE: lastLE, prepHtf: prepHtf, prepDaily: prepDaily };
+  R.ultra = { DEF: DEF, engine: engine, stepTrade: stepTrade, marketInfo: marketInfo, emaPine: emaPine, biasOf: biasOf, lastLE: lastLE, sessOf: sessOf, prepHtf: prepHtf, prepDaily: prepDaily };
 
   if (typeof document === 'undefined' || !R.chart || !R.chart.setOverlay) return;
 
@@ -335,6 +340,9 @@ window.RTX = window.RTX || {};
   function $(id) { return document.getElementById(id); }
 
   var FIELDS = [
+    ['power', 'bool', '🔥 POWER কনসেনসাস (সব স্ট্র্যাটেজির ভোট)'], ['gUltra', 'bool', 'ভোটার: ULTRA (৫ ইঞ্জিন)'], ['gXl', 'bool', 'ভোটার: XL (OC/Breakout/Donchian/MA/Supertrend/Aroon)'],
+    ['gUt', 'bool', 'ভোটার: UT Bot (Luxy)'], ['gJdt', 'bool', 'ভোটার: JDT Supertrend'],
+    ['pwVotes', 'num', 'সর্বনিম্ন কয়টি গ্রুপ একমত হতে হবে (১-৪)', 1, 4], ['pwWin', 'num', 'ভোটের জানালা (বার)', 1, 10], ['pwMinScore', 'num', 'POWER ন্যূনতম স্কোর', 30, 100], ['pwHtf', 'bool', 'POWER: HTF উল্টো হলে বাদ'],
     ['htfMode', 'select', 'HTF ফিল্টার (4H + 1H)', ['Strict', 'Normal', 'Off']],
     ['minScore', 'num', 'ন্যূনতম স্কোর', 30, 100], ['cooldown', 'num', 'সিগন্যালের পর বিরতি (বার)', 0, 200],
     ['oneTrade', 'bool', 'একসাথে একটাই লাইভ ট্রেড'], ['beOn', 'bool', 'TP1 এর পর SL ব্রেক-ইভেনে'],
@@ -381,11 +389,15 @@ window.RTX = window.RTX || {};
     var res;
     try { res = engine(all.slice(0, all.length - 1), h, cfg, info, cur.sec, mode); }
     catch (e) { say('ULTRA ত্রুটি: ' + e.message); return; }
+    if (cfg.power && R.power) {
+      try { res = R.power.run(all.slice(0, all.length - 1), res, cfg, info, cur.sec, mode); }
+      catch (e) { say('POWER ত্রুটি: ' + e.message); return; }
+    }
     state.res = res; state.info = info;
 
     R.chart.setMarkers(res.trades.map(function (t) {
       var b = t.dir === 1;
-      return { time: t.time, position: b ? 'belowBar' : 'aboveBar', color: b ? '#2979ff' : '#ffffff', shape: b ? 'arrowUp' : 'arrowDown', text: (b ? 'BUY ' : 'SELL ') + SHORT[t.mode] + ' ' + t.score };
+      return { time: t.time, position: b ? 'belowBar' : 'aboveBar', color: b ? '#2979ff' : '#ffffff', shape: b ? 'arrowUp' : 'arrowDown', text: (b ? 'BUY ' : 'SELL ') + (SHORT[t.mode] || 'P' + t.mode.split(' ')[1].split('/')[0]) + ' ' + t.score };
     }));
     R.chart.setOverlay(draw);
 
@@ -484,6 +496,11 @@ window.RTX = window.RTX || {};
     res.trades.forEach(function (x) { if (x.tp1Hit) tp1++; if (x.status === 5) sl++; if (x.status === 6) be++; if (x.status >= 1 && x.status <= 3) run++; });
     h += '<div class="card">' + kv('লোড করা চার্টে মোট সিগন্যাল', String(tot)) + kv('TP1 ছুঁয়েছে', tp1 + ' / ' + tot) + kv('SL হিট', String(sl)) + kv('ব্রেক-ইভেন', String(be)) + kv('চলমান', String(run)) +
       '<div class="note-info">এটা শুধু এই চার্টে এখন যে ক্যান্ডেল লোড আছে তার হিসাব। ভবিষ্যতের ফলের গ্যারান্টি নয়।</div></div>';
+    if (res.board) {
+      h += '<div class="card"><b>📊 স্ট্র্যাটেজি স্কোরবোর্ড</b> <span class="muted">(SL 1.5×ATR, TP 2R, লোড করা ক্যান্ডেলে)</span>';
+      res.board.forEach(function (r) { h += kv(esc(r.name), r.n ? r.n + ' ট্রেড · জয় ' + r.win.toFixed(0) + '% · ' + (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R' : '—', r.n && r.exp > 0 ? 'up' : r.n ? 'dn' : ''); });
+      h += '<div class="note-info">জয় ৩৩%-এর বেশি ও +R হলে ২R টার্গেটে লাভজনক ছিল। যে স্ট্র্যাটেজি এই সিম্বল/টাইমফ্রেমে খারাপ, সেটার ভোট বন্ধ করে দাও।</div></div>';
+    }
     return h;
   }
 
