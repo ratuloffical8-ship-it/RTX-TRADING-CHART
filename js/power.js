@@ -167,7 +167,7 @@ window.RTX = window.RTX || {};
   }
 
   /* ================= কনসেনসাস ইঞ্জিন ================= */
-  function run(cs, base, cfg, info, tfSec, htfMode) {
+  function prep(cs, base, info, tfSec) {
     var n = cs.length, i, k;
     var O = [], H = [], L = [], C = [], V = [], T = [];
     for (i = 0; i < n; i++) { O[i] = cs[i].open; H[i] = cs[i].high; L[i] = cs[i].low; C[i] = cs[i].close; V[i] = cs[i].volume || 0; T[i] = cs[i].time; }
@@ -194,6 +194,16 @@ window.RTX = window.RTX || {};
       var tp3 = (H[i] + L[i] + C[i]) / 3, w = V[i] > 0 ? V[i] : 1; pv += tp3 * w; vv += w; vw[i] = pv / vv;
       haC[i] = (O[i] + H[i] + L[i] + C[i]) / 4; haO[i] = i === 0 ? (O[0] + C[0]) / 2 : (haO[i - 1] + haC[i - 1]) / 2;
     }
+
+    return { n: n, tf: tfSec, A: A, O: O, H: H, L: L, C: C, V: V, T: T, atr: atr, atrAvg: atrAvg, h4: h4, h1: h1, ct: ct, XL: XL, xl: xl, xlN: xlN, ut: ut, jd: jd, st: st, ule: ule, e100: e100, vw: vw, haC: haC, haO: haO };
+  }
+
+  function run(cs, base, cfg, info, tfSec, htfMode) {
+    var P = (base._pw && base._pw.n === cs.length && base._pw.tf === tfSec) ? base._pw : (base._pw = prep(cs, base, info, tfSec));
+    var n = P.n, i, k, A = P.A, O = P.O, H = P.H, L = P.L, C = P.C, V = P.V, T = P.T, atr = P.atr, atrAvg = P.atrAvg, h4 = P.h4, h1 = P.h1, ct = P.ct;
+    var XL = P.XL, xl = P.xl, xlN = P.xlN, ut = P.ut, jd = P.jd, st = P.st, ule = P.ule, e100 = P.e100, vw = P.vw, haC = P.haC, haO = P.haO;
+    var mt = info.mintick, dec = info.dec;
+    function rt(x) { return +(Math.round(x / mt) * mt).toFixed(dec); }
 
     var enG = [!!cfg.gUltra, !!cfg.gXl, !!cfg.gUt, !!cfg.gJdt], gArr = [ule, xl, ut, jd], gName = ['ULTRA', 'XL', 'UT Bot', 'JDT ST'];
     var win = Math.max(1, cfg.pwWin | 0), minV = Math.max(1, Math.min(4, cfg.pwVotes | 0));
@@ -280,6 +290,7 @@ window.RTX = window.RTX || {};
     }
 
     // স্কোরবোর্ড
+    if (cfg.noBoard) return { trades: trades, closed: n, now: base.now, board: null };
     var rows = [['POWER (কনসেনসাস)', sigBars], ['ULTRA', ule]].concat(XL.map(function (e) { return [e[0], e[1]]; })).concat([['UT Bot', ut], ['JDT Supertrend', jd]]);
     var board = rows.map(function (r) { var s = sim(r[1], atr, H, L, C, n); return { name: r[0], n: s.n, win: s.win, exp: s.exp }; });
     return { trades: trades, closed: n, now: base.now, board: board };
