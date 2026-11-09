@@ -13,7 +13,8 @@ window.RTX = window.RTX || {};
     slBuf: 0.25, slMinAtr: 0.6, slMaxAtr: 3, tp1R: 1, tp2R: 2, tp3R: 3,
     balance: 1000, riskPct: 1, useSess: true, volFilter: true, volLow: 0.5, volHigh: 3,
     showHist: true, maxHist: 10,
-    power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true, autoOpt: true
+    power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true, autoOpt: true,
+    xOC: true, xBrk: true, xDon: true, xMA: true, xST: true, xAr: true
   };
   var ENG = ['Sweep Reclaim', 'CRT + TBS', 'Wyckoff + ICT', 'QM + SMC', 'Price Action + Fib'];
   var SHORT = { 'Sweep Reclaim': 'Sweep', 'CRT + TBS': 'CRT', 'Wyckoff + ICT': 'Wyckoff', 'QM + SMC': 'QM', 'Price Action + Fib': 'Fib' };
@@ -341,6 +342,7 @@ window.RTX = window.RTX || {};
 
   var FIELDS = [
     ['power', 'bool', '🔥 POWER কনসেনসাস (সব স্ট্র্যাটেজির ভোট)'], ['gUltra', 'bool', 'ভোটার: ULTRA (৫ ইঞ্জিন)'], ['gXl', 'bool', 'ভোটার: XL (OC/Breakout/Donchian/MA/Supertrend/Aroon)'],
+    ['xOC', 'bool', 'XL এর ভেতরে: OC'], ['xBrk', 'bool', 'XL এর ভেতরে: Breakout'], ['xDon', 'bool', 'XL এর ভেতরে: Donchian'], ['xMA', 'bool', 'XL এর ভেতরে: MA Cross'], ['xST', 'bool', 'XL এর ভেতরে: Supertrend'], ['xAr', 'bool', 'XL এর ভেতরে: Aroon'],
     ['gUt', 'bool', 'ভোটার: UT Bot (Luxy)'], ['gJdt', 'bool', 'ভোটার: JDT Supertrend'],
     ['pwVotes', 'num', 'সর্বনিম্ন কয়টি গ্রুপ একমত হতে হবে (১-৪)', 1, 4], ['pwWin', 'num', 'ভোটের জানালা (বার)', 1, 10], ['pwMinScore', 'num', 'POWER ন্যূনতম স্কোর', 30, 100], ['pwHtf', 'bool', 'POWER: HTF উল্টো হলে বাদ'],
     ['htfMode', 'select', 'HTF ফিল্টার (4H + 1H)', ['Strict', 'Normal', 'Off']],
