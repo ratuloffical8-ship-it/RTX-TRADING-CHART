@@ -1,9 +1,9 @@
 /* RTX Chart — সার্ভিস ওয়ার্কার: অফলাইনেও অ্যাপের ফাইল খোলে, ডিপ্লয়ের পর অনলাইনে নতুন ভার্সন আসে */
-var CACHE = 'rtx-chart-v4';
+var CACHE = 'rtx-chart-v5';
 var SHELL = [
   './', 'index.html', 'manifest.json', 'icon-512.png',
   'css/style.css', 'css/extra.css',
-  'js/data.js', 'js/chart.js', 'js/panels.js', 'js/tools.js', 'js/paper.js', 'js/ultra.js', 'js/app.js'
+  'js/data.js', 'js/chart.js', 'js/panels.js', 'js/tools.js', 'js/paper.js', 'js/power.js', 'js/ultra.js', 'js/app.js'
 ];
 var LIB = 'https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js';
 
