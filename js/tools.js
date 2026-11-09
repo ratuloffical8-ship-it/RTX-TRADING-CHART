@@ -45,7 +45,7 @@ window.RTX = window.RTX || {};
     });
     return out;
   }
-  async function td(symbol, tf, size, endTime) {
+  async function tdRaw(symbol, tf, size, endTime) {
     var key = tdKey(); if (!key) throw new Error('NO_KEY');
     var base = tf === '3m' ? '1min' : IV[tf];
     if (!base) throw new Error('এই টাইমফ্রেম ফরেক্সে নেই');
@@ -63,32 +63,52 @@ window.RTX = window.RTX || {};
   }
 
   /* ---------- Yahoo Finance (নিজের প্রক্সির মাধ্যমে, key লাগে না) ---------- */
-  var YSYM = { 'EUR/USD': 'EURUSD=X', 'GBP/USD': 'GBPUSD=X', 'USD/JPY': 'USDJPY=X', 'AUD/USD': 'AUDUSD=X', 'USD/CAD': 'USDCAD=X', 'USD/CHF': 'USDCHF=X', 'GBP/JPY': 'GBPJPY=X', 'XAU/USD': 'GC=F' };
+  var YSYM = { 'EUR/USD': 'EURUSD=X', 'GBP/USD': 'GBPUSD=X', 'USD/JPY': 'USDJPY=X', 'AUD/USD': 'AUDUSD=X', 'USD/CAD': 'USDCAD=X', 'USD/CHF': 'USDCHF=X', 'GBP/JPY': 'GBPJPY=X', 'XAU/USD': ['XAUUSD=X', 'GC=F'] };
   // tf -> [Yahoo interval, বেস সেকেন্ড, গুণক, সর্বোচ্চ দিন]
   var YTF = { '1m': ['1m', 60, 1, 7], '3m': ['1m', 60, 3, 7], '5m': ['5m', 300, 1, 59], '15m': ['15m', 900, 1, 59], '30m': ['30m', 1800, 1, 59],
     '1h': ['60m', 3600, 1, 720], '4h': ['60m', 3600, 4, 720], '1d': ['1d', 86400, 1, 7000], '1w': ['1wk', 604800, 1, 7000] };
   function proxyUrl() { var v = ''; try { v = localStorage.getItem('rtx_proxy') || ''; } catch (_) {} return v.replace(/\/+$/, ''); }
   async function yh(symbol, tf, size, endTime) {
     var base = proxyUrl(); if (!base) throw new Error('NO_PROXY');
-    var m = YTF[tf], ys = YSYM[symbol]; if (!m || !ys) throw new Error('এই টাইমফ্রেম/সিম্বল Yahoo-তে নেই');
+    var m = YTF[tf], ysl = [].concat(YSYM[symbol] || []); if (!m || !ysl.length) throw new Error('এই টাইমফ্রেম/সিম্বল Yahoo-তে নেই');
     var need = size * m[2] + m[2] + 2, p2 = endTime ? Math.floor(endTime / 1000) : Math.floor(Date.now() / 1000) + m[1];
     var span = Math.min(m[3] * 86400, Math.ceil(need * m[1] * 1.5) + 3 * 86400);
-    var url = base + '/y?symbol=' + encodeURIComponent(ys) + '&interval=' + m[0] + '&p1=' + (p2 - span) + '&p2=' + p2;
-    var r = await fetch(url), j = await r.json();
-    var res = j && j.chart && j.chart.result && j.chart.result[0];
-    if (!res || !res.timestamp) throw new Error((j && (j.error || (j.chart && j.chart.error && j.chart.error.description))) || 'Yahoo থেকে ডেটা আসেনি');
-    var q = res.indicators.quote[0], cs = [];
-    for (var i = 0; i < res.timestamp.length; i++) {
-      if (q.open[i] == null || q.high[i] == null || q.low[i] == null || q.close[i] == null) continue;
-      cs.push({ time: res.timestamp[i], open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume && q.volume[i] ? q.volume[i] : 0 });
+    var cs = [], lastErr = null;
+    for (var yi = 0; yi < ysl.length && cs.length < 5; yi++) {
+      try {
+        var url = base + '/y?symbol=' + encodeURIComponent(ysl[yi]) + '&interval=' + m[0] + '&p1=' + (p2 - span) + '&p2=' + p2;
+        var r = await fetch(url), j = await r.json();
+        var res = j && j.chart && j.chart.result && j.chart.result[0];
+        if (!res || !res.timestamp) throw new Error((j && (j.error || (j.chart && j.chart.error && j.chart.error.description))) || 'Yahoo থেকে ডেটা আসেনি');
+        var q = res.indicators.quote[0]; cs = [];
+        for (var i = 0; i < res.timestamp.length; i++) {
+          if (q.open[i] == null || q.high[i] == null || q.low[i] == null || q.close[i] == null) continue;
+          cs.push({ time: res.timestamp[i], open: q.open[i], high: q.high[i], low: q.low[i], close: q.close[i], volume: q.volume && q.volume[i] ? q.volume[i] : 0 });
+        }
+      } catch (e) { lastErr = e; cs = []; }
     }
+    if (cs.length < 2) throw lastErr || new Error('Yahoo থেকে ডেটা আসেনি');
     cs = cs.filter(function (c, i) { return i === 0 || c.time !== cs[i - 1].time; });
     if (m[2] > 1) cs = agg(cs, m[1] * m[2]);
     return cs.slice(-size);
   }
+  function fxSrc() { var v = ''; try { v = localStorage.getItem('rtx_fxsrc') || ''; } catch (_) {} if (v === 'td' && tdKey()) return 'td'; if (proxyUrl() && v !== 'td') return 'yahoo'; return tdKey() ? 'td' : 'yahoo'; }
   async function fxFetch(symbol, tf, size, endTime) {
-    if (proxyUrl()) return yh(symbol, tf, size, endTime);
+    if (fxSrc() === 'yahoo') return yh(symbol, tf, size, endTime);
     return td(symbol, tf, size, endTime);
+  }
+  /* Twelve Data: প্রতি ৮ সেকেন্ডে সর্বোচ্চ ১টি কল (মিনিটে ৮-এর সীমার ভেতরে) + ৬০ সেকেন্ডের ক্যাশ */
+  var tdCache = {}, tdChain = Promise.resolve(), tdLast = 0;
+  function td(symbol, tf, size, endTime) {
+    var k = [symbol, tf, size, endTime || 0].join('|'), c = tdCache[k];
+    if (c && Date.now() - c.t < 60000) return Promise.resolve(c.v);
+    var job = tdChain.then(async function () {
+      var wait = tdLast + 8000 - Date.now(); if (wait > 0) await new Promise(function (r) { setTimeout(r, wait); });
+      try { var v = await tdRaw(symbol, tf, size, endTime); tdCache[k] = { t: Date.now(), v: v }; return v; }
+      finally { tdLast = Date.now(); }
+    });
+    tdChain = job.catch(function () {});
+    return job;
   }
   R.forex = { parseDT: parseDT, fmtDT: fmtDT, agg: agg, isFx: isFx };
 
@@ -114,7 +134,7 @@ window.RTX = window.RTX || {};
         try { (await fxFetch(symbol, tf, 2)).slice(-2).forEach(onCandle); onStatus(true); }
         catch (e) { onStatus(false); }
       }
-      timer = setTimeout(tick, proxyUrl() ? 10000 : 20000);
+      timer = setTimeout(tick, fxSrc() === 'yahoo' ? 10000 : 30000);
     }
     timer = setTimeout(tick, 5000); onStatus(true);
     return { close: function () { stop = true; clearTimeout(timer); } };
@@ -194,6 +214,7 @@ window.RTX = window.RTX || {};
       '<div class="note-info">USD কোটেড ফরেক্স পেয়ারে (যেমন EUR/USD, GBP/USD) লট ≈ ইউনিট ÷ ১,০০,০০০। USD/JPY বা জোড়ার ক্ষেত্রে লাভ-লস অন্য মুদ্রায় আসে, তাই ব্রোকারের ক্যালকুলেটরে মিলিয়ে নিও।</div>' +
       '<h2 class="pg" style="margin-top:22px">ফরেক্স ডেটা সেটিংস</h2>' +
       '<div class="card"><label class="field"><span>Yahoo প্রক্সি URL (key লাগে না)</span><input id="px-url" type="url" autocomplete="off" placeholder="https://rtx-proxy.onrender.com"></label>' +
+      '<label class="field"><span>ফরেক্স/সোনার সোর্স</span><select id="fx-src"><option value="">অটো (প্রক্সি থাকলে Yahoo)</option><option value="td">Twelve Data (key লাগবে)</option></select></label>' +
       '<div class="btnrow"><button class="btn primary" id="px-save">সেভ করো</button></div>' +
       '<div class="note-info">প্রক্সি দিলে ফরেক্স ও সোনা (GC=F) Yahoo থেকে আসবে, Twelve Data লাগবে না। ফাঁকা রাখলে নিচের Twelve Data key ব্যবহার হবে।</div></div>' +
       '<div class="card"><label class="field"><span>Twelve Data API key</span><input id="td-key" type="password" autocomplete="off" placeholder="এখানে key বসাও"></label>' +
@@ -201,10 +222,10 @@ window.RTX = window.RTX || {};
       '<div class="note-info">twelvedata.com এ ফ্রি অ্যাকাউন্ট খুলে key নাও। ফ্রি প্ল্যানে রিকোয়েস্টের সীমা আছে (সাইটে দেখে নিও), তাই ফরেক্স চার্ট প্রতি ২০ সেকেন্ডে একবার আপডেট হয়। key শুধু তোমার ফোনের ব্রাউজারে সেভ থাকে, কোডে বা GitHub-এ যায় না।</div></div>';
 
     $('rc-bal').value = lsGet('rtx_rc_bal', ''); $('rc-risk').value = lsGet('rtx_rc_risk', '1');
-    $('td-key').value = tdKey(); $('px-url').value = proxyUrl();
+    $('td-key').value = tdKey(); $('px-url').value = proxyUrl(); try { $('fx-src').value = localStorage.getItem('rtx_fxsrc') || ''; } catch (_) {}
     $('px-save').onclick = function () {
       var v = $('px-url').value.trim();
-      try { if (v) localStorage.setItem('rtx_proxy', v); else localStorage.removeItem('rtx_proxy'); } catch (_) {}
+      try { if (v) localStorage.setItem('rtx_proxy', v); else localStorage.removeItem('rtx_proxy'); var fv = $('fx-src').value; if (fv) localStorage.setItem('rtx_fxsrc', fv); else localStorage.removeItem('rtx_fxsrc'); } catch (_) {}
       say('সেভ হয়েছে, রিলোড হচ্ছে…'); setTimeout(function () { location.reload(); }, 800);
     };
 
