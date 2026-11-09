@@ -11,7 +11,9 @@ window.RTX = window.RTX || {};
     { id: 'XRPUSDT', name: 'XRP/USDT' },
     { id: 'DOGEUSDT', name: 'DOGE/USDT' },
     { id: 'ADAUSDT', name: 'ADA/USDT' },
-    { id: 'LTCUSDT', name: 'LTC/USDT' }
+    { id: 'LTCUSDT', name: 'LTC/USDT' },
+    { id: 'XAUUSDT', name: 'GOLD · XAUUSDT (Binance Futures)' },
+    { id: 'PAXGUSDT', name: 'GOLD · PAXG/USDT (Binance Spot)' }
   ];
 
   R.TFS = [
@@ -27,6 +29,8 @@ window.RTX = window.RTX || {};
   ];
 
   var HOSTS = ['https://api.binance.com', 'https://data-api.binance.vision'];
+  var FUT = { XAUUSDT: 1 };
+  var FHOST = 'https://fapi.binance.com', FWSS = 'wss://fstream.binance.com/ws/';
   var WSS = ['wss://stream.binance.com:9443/ws/', 'wss://data-stream.binance.vision/ws/'];
 
   function rng(seed) {
@@ -43,9 +47,10 @@ window.RTX = window.RTX || {};
     /* পুরোনো ক্যান্ডেল আনতে endTime (ms) দেওয়া যায় */
     klines: async function (symbol, tf, limit, endTime) {
       var lastErr;
-      for (var i = 0; i < HOSTS.length; i++) {
+      var hs = FUT[symbol] ? [FHOST] : HOSTS;
+      for (var i = 0; i < hs.length; i++) {
         try {
-          var url = HOSTS[i] + '/api/v3/klines?symbol=' + symbol + '&interval=' + tf + '&limit=' + (limit || 1000);
+          var url = hs[i] + (FUT[symbol] ? '/fapi/v1/klines?symbol=' : '/api/v3/klines?symbol=') + symbol + '&interval=' + tf + '&limit=' + (limit || 1000);
           if (endTime) url += '&endTime=' + endTime;
           var r = await fetch(url);
           if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -63,7 +68,7 @@ window.RTX = window.RTX || {};
       var ws, closed = false, idx = 0, retry = 0, timer;
       function open() {
         if (closed) return;
-        try { ws = new WebSocket(WSS[idx % WSS.length] + symbol.toLowerCase() + '@kline_' + tf); }
+        try { ws = new WebSocket((FUT[symbol] ? FWSS : WSS[idx % WSS.length]) + symbol.toLowerCase() + '@kline_' + tf); }
         catch (e) { schedule(); return; }
         ws.onopen = function () { retry = 0; onStatus(true); };
         ws.onmessage = function (e) {
