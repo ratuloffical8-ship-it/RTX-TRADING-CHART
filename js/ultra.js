@@ -365,6 +365,7 @@ window.RTX = window.RTX || {};
   var optStore = lsGet('rtx_ultra_opt', {});
   function optKey() { return cur.sym + '|' + cur.sec; }
   function effCfg() { var o = cfg.autoOpt && optStore[optKey()]; return o ? Object.assign({}, cfg, o) : cfg; }
+  R.ultra.getState = function () { return { res: state.res, info: state.info, cfg: state.cfg, sym: cur.sym, sec: cur.sec }; };
   var cur = { sym: null, sec: 60 }, state = { res: null, warn: '' }, htfStore = {}, tm = 0, lastN = 0, seenKey = '', seen = {};
 
   /* ---------- HTF ডেটা (4H, 1H, দৈনিক) ---------- */
@@ -563,6 +564,7 @@ window.RTX = window.RTX || {};
     box.innerHTML = '<div class="sheet-body"><div class="sheet-h"><b>⚡ RTX ULTRA PRO MAX</b><button id="ul-x">✕</button></div>' +
       '<div class="row"><label><input type="checkbox" id="ul-on"' + (cfg.on ? ' checked' : '') + '><span>চার্টে ULTRA সিগন্যাল চালু</span></label></div>' +
       '<div class="card"><b>🎯 অটো-সেটআপ</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মার্কেট ও টাইমফ্রেমে আগের ডেটায় সেরা সেটিং খুঁজে শেষ ৩৫% ডেটায় যাচাই করে দেখায়।</div><div class="btnrow"><button class="btn primary" id="ul-opt">খোঁজো</button><button class="btn" id="ul-optoff">অটো-সেটআপ মুছো</button></div><div id="ul-optres"></div></div>' +
+      '<div class="card"><b>🤖 AI সহায়ক</b><div class="muted" style="font-size:12px;margin:4px 0 8px">সর্বশেষ সিগন্যাল বাংলায় ব্যাখ্যা করবে। বাটন চাপলেই শুধু কল হয়, একই সিগন্যালে দ্বিতীয়বার লিমিট খরচ হয় না।</div><div class="btnrow"><button class="btn primary" id="ai-explain">এই সিগন্যাল ব্যাখ্যা করো</button></div><div id="ai-out"></div></div>' +
       '<div id="ul-dash"></div>' +
       '<details class="fold"><summary>⚙️ সেটিংস</summary><div class="fbody" id="ul-cfg">' + fieldsHtml() +
       '<div class="btnrow"><button class="btn" id="ul-reset">ডিফল্টে ফেরাও</button></div></div></details>' +
