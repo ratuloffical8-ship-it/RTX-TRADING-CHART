@@ -1,3 +1,7 @@
+// ফাইলের নাম: power.js
+// পাথ: js/power.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
+/* এই ফাইল এখন "ডিসপ্যাচার": R.power.run নতুন ইঞ্জিন (decision.js) চালায়। পুরোনো ভোটিং সিস্টেম 'ক্লাসিক' হিসেবে রাখা আছে।
+   cfg.engine === 'classic' হলে (বা অটো-সেটআপ optimize.js পুরোনো পদ্ধতিতে noBoard:true দিলে) ক্লাসিক চলে। */
 /* RTX Chart — POWER: সব স্ট্র্যাটেজি একসাথে (ভোটিং/কনসেনসাস) + প্রতিটির ব্যাকটেস্ট স্কোরবোর্ড
    ভোটার গ্রুপ: ULTRA (৫ ইঞ্জিন) · XL (OC, Breakout, Donchian, MA Cross, Supertrend, Aroon) · UT Bot (Luxy) · JDT Supertrend
    সব সিগন্যাল শুধু বন্ধ ক্যান্ডেলে। একই ক্যান্ডেলে SL ও TP দুটোই ছুঁলে SL আগে ধরা হয়। */
@@ -198,8 +202,10 @@ window.RTX = window.RTX || {};
     return { n: n, tf: tfSec, A: A, O: O, H: H, L: L, C: C, V: V, T: T, atr: atr, atrAvg: atrAvg, h4: h4, h1: h1, ct: ct, XL: XL, xl: xl, xlN: xlN, ut: ut, jd: jd, st: st, ule: ule, e100: e100, vw: vw, haC: haC, haO: haO };
   }
 
-  function run(cs, base, cfg, info, tfSec, htfMode) {
-    var P = (base._pw && base._pw.n === cs.length && base._pw.tf === tfSec) ? base._pw : (base._pw = prep(cs, base, info, tfSec));
+  function getP(cs, base, info, tfSec) { return (base._pw && base._pw.n === cs.length && base._pw.tf === tfSec) ? base._pw : (base._pw = prep(cs, base, info, tfSec)); }
+
+  function runClassic(cs, base, cfg, info, tfSec, htfMode) {
+    var P = getP(cs, base, info, tfSec);
     var n = P.n, i, k, A = P.A, O = P.O, H = P.H, L = P.L, C = P.C, V = P.V, T = P.T, atr = P.atr, atrAvg = P.atrAvg, h4 = P.h4, h1 = P.h1, ct = P.ct;
     var XL = P.XL, xl = Z(n), xlN = new Array(n), ut = P.ut, jd = P.jd, st = P.st, ule = P.ule, e100 = P.e100, vw = P.vw, haC = P.haC, haO = P.haO;
     var mt = info.mintick, dec = info.dec;
@@ -297,12 +303,21 @@ window.RTX = window.RTX || {};
 
     // স্কোরবোর্ড
     if (cfg.noBoard) return { trades: trades, closed: n, now: base.now, board: null };
-    var rows = [['POWER (কনসেনসাস)', sigBars], ['ULTRA', ule]].concat(XL.map(function (e) { return [e[0], e[1]]; })).concat([['UT Bot', ut], ['JDT Supertrend', jd]]);
-    var board = rows.map(function (r) { var s = sim(r[1], atr, H, L, C, n); return { name: r[0], n: s.n, win: s.win, exp: s.exp }; });
-    return { trades: trades, closed: n, now: base.now, board: board };
+    return { trades: trades, closed: n, now: base.now, board: makeBoard(P, sigBars) };
   }
 
-  R.power = { run: run, sim: sim, engines: { oc: engOC, don: engDon, ma: engMA, aroon: engAroon, brk: engBrk, st: stStd, jdt: jdt, ut: engUT }, atrN: atrN };
+  /* প্রতিটি স্ট্র্যাটেজির আলাদা ব্যাকটেস্ট স্কোরবোর্ড (SL 1.5×ATR, TP 2R) */
+  function makeBoard(P, sigBars) {
+    var rows = [['POWER (কনসেনসাস)', sigBars], ['ULTRA', P.ule]].concat(P.XL.map(function (e) { return [e[0], e[1]]; })).concat([['UT Bot', P.ut], ['JDT Supertrend', P.jd]]);
+    return rows.map(function (r) { var q = sim(r[1], P.atr, P.H, P.L, P.C, P.n); return { name: r[0], n: q.n, win: q.win, exp: q.exp }; });
+  }
+
+  function run(cs, base, cfg, info, tfSec, htfMode) {
+    if ((cfg.engine === 'classic' || cfg.noBoard) || !R.decision) return runClassic(cs, base, cfg, info, tfSec, htfMode);
+    return R.decision.run(cs, base, cfg, info, tfSec, htfMode);
+  }
+
+  R.power = { run: run, runClassic: runClassic, prep: getP, board: makeBoard, sim: sim,  engines: { oc: engOC, don: engDon, ma: engMA, aroon: engAroon, brk: engBrk, st: stStd, jdt: jdt, ut: engUT }, atrN: atrN };
 })(window.RTX);
 
 /* ---------- TradingView ট্যাব: অফিসিয়াল ফ্রি উইজেট (কী লাগে না, অরিজিনাল ক্যান্ডেল) ---------- */
