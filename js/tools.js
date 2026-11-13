@@ -1,3 +1,5 @@
+// ফাইলের নাম: tools.js
+// পাথ: js/tools.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — টুলস: ফরেক্স ডেটা (Twelve Data), রিস্ক ক্যালকুলেটর, ট্রেড জার্নাল */
 window.RTX = window.RTX || {};
 (function (R) {
@@ -13,12 +15,10 @@ window.RTX = window.RTX || {};
      ১) ফরেক্স ডেটা — Twelve Data (নিজের API key লাগবে)
      ===================================================== */
   var FX = [
-    { id: 'EUR/USD', base: 1.08 }, { id: 'GBP/USD', base: 1.27 }, { id: 'USD/JPY', base: 150 },
-    { id: 'AUD/USD', base: 0.66 }, { id: 'USD/CAD', base: 1.36 }, { id: 'USD/CHF', base: 0.88 },
-    { id: 'GBP/JPY', base: 190 }, { id: 'XAU/USD', base: 2650, name: 'XAU/USD (Gold)' }
+    { id: 'XAU/USD', base: 2650 }, { id: 'BTC/USD', base: 90000 }
   ];
   var FXBASE = {};
-  FX.forEach(function (s) { FXBASE[s.id] = s.base; R.SYMBOLS.push({ id: s.id, name: s.name || s.id }); });
+  FX.forEach(function (s) { FXBASE[s.id] = s.base; if (!R.SYMBOLS.some(function (x) { return x.id === s.id; })) R.SYMBOLS.push({ id: s.id, name: s.id }); });
   var IV = { '1m': '1min', '5m': '5min', '15m': '15min', '30m': '30min', '1h': '1h', '4h': '4h', '1d': '1day', '1w': '1week' };
 
   function isFx(sym) { return String(sym).indexOf('/') > 0; }
@@ -63,7 +63,8 @@ window.RTX = window.RTX || {};
   }
 
   /* ---------- Yahoo Finance (নিজের প্রক্সির মাধ্যমে, key লাগে না) ---------- */
-  var YSYM = { 'EUR/USD': 'EURUSD=X', 'GBP/USD': 'GBPUSD=X', 'USD/JPY': 'USDJPY=X', 'AUD/USD': 'AUDUSD=X', 'USD/CAD': 'USDCAD=X', 'USD/CHF': 'USDCHF=X', 'GBP/JPY': 'GBPJPY=X', 'XAU/USD': ['XAUUSD=X', 'GC=F'] };
+  /* গোল্ডে আর চুপচাপ ফিউচার্স (GC=F) নয়: ফিউচার্সের দামে স্পটের চেয়ে তফাত থাকে, তাই ক্যান্ডেল কখনো মিলত কখনো অনেক ওপরে-নিচে যেত */
+  var YSYM = { 'XAU/USD': ['XAUUSD=X'], 'BTC/USD': ['BTC-USD'] };
   // tf -> [Yahoo interval, বেস সেকেন্ড, গুণক, সর্বোচ্চ দিন]
   var YTF = { '1m': ['1m', 60, 1, 7], '3m': ['1m', 60, 3, 7], '5m': ['5m', 300, 1, 59], '15m': ['15m', 900, 1, 59], '30m': ['30m', 1800, 1, 59],
     '1h': ['60m', 3600, 1, 720], '4h': ['60m', 3600, 4, 720], '1d': ['1d', 86400, 1, 7000], '1w': ['1wk', 604800, 1, 7000] };
@@ -113,31 +114,96 @@ window.RTX = window.RTX || {};
   R.forex = { parseDT: parseDT, fmtDT: fmtDT, agg: agg, isFx: isFx };
 
   var origK = R.data.klines, origL = R.data.live, origD = R.data.demo;
-  R.data.klines = async function (symbol, tf, limit, endTime) {
-    if (!isFx(symbol)) return origK.apply(R.data, arguments);
+
+  /* ---------- সোর্স লক (গোল্ডের ক্যান্ডেল অফসেট ঠিক করতে) ----------
+     আগে সোর্স চুপচাপ বদলে যেত (স্পট ↔ ফিউচার্স), তাই একই চার্টে দুই সোর্সের ক্যান্ডেল মিশে দামে ফাঁক তৈরি হতো।
+     এখন প্রথমবার যে সোর্স কাজ করে, পুরো সেশনে (পুরোনো ক্যান্ডেল আনা ও লাইভসহ) শুধু সেটাই চলে। সোর্স বদলাতে হলে রিলোড।
+     গোল্ডের অগ্রাধিকার: Yahoo XAUUSD=X (স্পট) → না পেলে Binance XAUUSDT (এটা স্পট নয়, তাই চার্টে স্পষ্ট লেখা থাকে) */
+  var LOCK = {};
+  function goldOff() { var v = parseFloat(localStorage.getItem('rtx_gold_off')); return isFinite(v) ? v : 0; }
+  function applyOff(symbol, cs) {
+    if (symbol !== 'XAU/USD') return cs;
+    var o = goldOff(); if (!o) return cs;
+    return cs.map(function (c) { return { time: c.time, open: c.open + o, high: c.high + o, low: c.low + o, close: c.close + o, volume: c.volume }; });
+  }
+  function srcLabel(symbol) {
+    if (!isFx(symbol)) return 'Binance স্পট ' + symbol;
+    var k = LOCK[symbol], off = symbol === 'XAU/USD' ? goldOff() : 0, tail = off ? ' · অফসেট ' + (off > 0 ? '+' : '') + off : '';
+    if (!k) return symbol + ' সোর্স লোড হচ্ছে';
+    if (k === 'binance') return 'Binance ফিউচার্স XAUUSDT (স্পট নয়, Exness থেকে তফাত হতে পারে)' + tail;
+    if (k === 'td') return 'Twelve Data ' + symbol + tail;
+    return 'Yahoo ' + (YSYM[symbol] || [symbol])[0] + (symbol === 'XAU/USD' ? ' (স্পট)' : '') + tail;
+  }
+  R.data.sourceLabel = srcLabel;
+  async function fxOne(symbol, tf, size, endTime, src) {
+    if (src === 'binance') return origK.call(R.data, 'XAUUSDT', tf, size, endTime);
+    if (src === 'td') return td(symbol, tf, size, endTime);
+    return yh(symbol, tf, size, endTime);
+  }
+  async function lockedFetch(symbol, tf, size, endTime) {
+    var k = LOCK[symbol];
+    if (k) return fxOne(symbol, tf, size, endTime, k);
+    var first = fxSrc() === 'td' ? 'td' : 'yahoo', cs;
     try {
-      var cs = await fxFetch(symbol, tf, Math.min(limit || 1000, 1000), endTime);
-      if (tf === '3m' && cs.length > 1) cs.shift();
-      return cs;
+      /* Render-এর ফ্রি প্রক্সি ঘুমিয়ে থাকলে জাগতে ৩০-৬০ সেকেন্ড লাগে, তাই ভুল সোর্সে নামার আগে ৩ বার চেষ্টা (৬ সেকেন্ড ফাঁকে) */
+      var tries = symbol === 'XAU/USD' ? 3 : 1, lastE = null;
+      for (var ti = 0; ti < tries; ti++) {
+        try { cs = await fxOne(symbol, tf, size, endTime, first); LOCK[symbol] = first; lastE = null; break; }
+        catch (e1) { lastE = e1; if (e1 && (e1.message === 'NO_PROXY' || e1.message === 'NO_KEY')) break; if (ti < tries - 1) await new Promise(function (r) { setTimeout(r, 6000); }); }
+      }
+      if (lastE) throw lastE;
+    }
+    catch (e) {
+      if (symbol !== 'XAU/USD') throw e;
+      cs = await fxOne(symbol, tf, size, endTime, 'binance'); LOCK[symbol] = 'binance';
+      setTimeout(function () { say('Yahoo থেকে গোল্ডের স্পট ডেটা আসেনি, তাই Binance XAUUSDT (ফিউচার্স) দেখানো হচ্ছে। দামে সামান্য তফাত থাকতে পারে।'); }, 1500);
+    }
+    return cs;
+  }
+  function paintBadge(symbol) {
+    try {
+      var b = document.getElementById('src-badge');
+      if (!b) {
+        var wrap = document.getElementById('chart-wrap') || document.getElementById('chart'); if (!wrap || !wrap.parentNode) return;
+        b = document.createElement('div'); b.id = 'src-badge'; b.style.cssText = 'font-size:11px;color:#8b8b8b;padding:2px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:none';
+        wrap.parentNode.insertBefore(b, wrap);
+      }
+      b.textContent = 'ডেটা সোর্স: ' + srcLabel(symbol);
+    } catch (_) {}
+  }
+
+  R.data.klines = async function (symbol, tf, limit, endTime) {
+    if (!isFx(symbol)) { var r0 = await origK.apply(R.data, arguments); setTimeout(function () { paintBadge(symbol); }, 0); return r0; }
+    try {
+      var cs = await lockedFetch(symbol, tf, Math.min(limit || 1000, 1000), endTime);
+      if (tf === '3m' && cs.length > 1 && LOCK[symbol] !== 'binance') cs.shift();
+      setTimeout(function () { paintBadge(symbol); }, 0);
+      return applyOff(symbol, cs);
     } catch (e) {
-      var m = (e.message === 'NO_KEY' || e.message === 'NO_PROXY') ? 'ফরেক্স দেখতে 🧮 টুলস ট্যাবে Yahoo প্রক্সির URL (বা Twelve Data key) দাও' : 'ফরেক্স ডেটা সমস্যা: ' + e.message;
+      var m = (e.message === 'NO_KEY' || e.message === 'NO_PROXY') ? 'গোল্ড ও BTC/USD দেখতে 🧮 টুলস ট্যাবে Yahoo প্রক্সির URL দাও' : 'ডেটা সমস্যা: ' + e.message;
       setTimeout(function () { say(m); }, 3200);
       throw e;
     }
   };
   R.data.live = function (symbol, tf, onCandle, onStatus) {
     if (!isFx(symbol)) return origL.apply(R.data, arguments);
-    var stop = false, timer;
+    var stop = false, timer, inner = null;
     async function tick() {
       if (stop) return;
       if (typeof document === 'undefined' || !document.hidden) {
-        try { (await fxFetch(symbol, tf, 2)).slice(-2).forEach(onCandle); onStatus(true); }
-        catch (e) { onStatus(false); }
+        try {
+          var k = LOCK[symbol];
+          if (k === 'binance') {
+            if (!inner) inner = origL.call(R.data, 'XAUUSDT', tf, function (c) { applyOff(symbol, [c]).forEach(onCandle); }, onStatus);
+            return;
+          }
+          applyOff(symbol, (await lockedFetch(symbol, tf, 2)).slice(-2)).forEach(onCandle); onStatus(true);
+        } catch (e) { onStatus(false); }
       }
       timer = setTimeout(tick, fxSrc() === 'yahoo' ? 10000 : 30000);
     }
     timer = setTimeout(tick, 5000); onStatus(true);
-    return { close: function () { stop = true; clearTimeout(timer); } };
+    return { close: function () { stop = true; clearTimeout(timer); if (inner) inner.close(); } };
   };
   R.data.demo = function (symbol, sec, n, endTimeSec) {
     var arr = origD.apply(R.data, arguments);
@@ -216,7 +282,10 @@ window.RTX = window.RTX || {};
       '<div class="card"><label class="field"><span>Yahoo প্রক্সি URL (key লাগে না)</span><input id="px-url" type="url" autocomplete="off" placeholder="https://rtx-proxy.onrender.com"></label>' +
       '<label class="field"><span>ফরেক্স/সোনার সোর্স</span><select id="fx-src"><option value="">অটো (প্রক্সি থাকলে Yahoo)</option><option value="td">Twelve Data (key লাগবে)</option></select></label>' +
       '<div class="btnrow"><button class="btn primary" id="px-save">সেভ করো</button></div>' +
-      '<div class="note-info">প্রক্সি দিলে ফরেক্স ও সোনা (GC=F) Yahoo থেকে আসবে, Twelve Data লাগবে না। ফাঁকা রাখলে নিচের Twelve Data key ব্যবহার হবে।</div></div>' +
+      '<div class="note-info">প্রক্সি দিলে গোল্ড (XAU/USD স্পট) ও BTC/USD Yahoo থেকে আসবে, Twelve Data লাগবে না। ফাঁকা রাখলে নিচের Twelve Data key ব্যবহার হবে।</div></div>' +
+      '<div class="card"><label class="field"><span>গোল্ডের দামের অফসেট ($, Exness-এর সাথে মেলাতে)</span><input id="go-off" type="number" step="any" placeholder="0"></label>' +
+      '<div class="btnrow"><button class="btn primary" id="go-save">সেভ করো</button></div>' +
+      '<div class="note-info">কীভাবে মেলাবে: Exness-এ গোল্ডের এখনকার দাম আর এই চার্টের দাম একই সময়ে দেখো। যদি Exness ২ ডলার বেশি দেখায় তবে +2 লেখো, কম দেখালে -2। সব ক্যান্ডেল সেই পরিমাণ সরে যাবে। Exness-এর নিজস্ব ফিড হুবহু পাওয়া যায় না, তাই অফসেট কখনো কখনো আবার ঠিক করতে হতে পারে।</div></div>' +
       '<div class="card"><label class="field"><span>Twelve Data API key</span><input id="td-key" type="password" autocomplete="off" placeholder="এখানে key বসাও"></label>' +
       '<div class="btnrow"><button class="btn primary" id="td-save">সেভ করো</button></div>' +
       '<div class="note-info">twelvedata.com এ ফ্রি অ্যাকাউন্ট খুলে key নাও। ফ্রি প্ল্যানে রিকোয়েস্টের সীমা আছে (সাইটে দেখে নিও), তাই ফরেক্স চার্ট প্রতি ২০ সেকেন্ডে একবার আপডেট হয়। key শুধু তোমার ফোনের ব্রাউজারে সেভ থাকে, কোডে বা GitHub-এ যায় না।</div></div>';
@@ -252,6 +321,12 @@ window.RTX = window.RTX || {};
     $('rc-price').onclick = function () {
       var c = R.chart.last(); if (!c) { say('চার্টে এখনো দাম আসেনি'); return; }
       $('rc-entry').value = R.chart.fmt(c.close); calc();
+    };
+    try { $('go-off').value = localStorage.getItem('rtx_gold_off') || ''; } catch (_) {}
+    $('go-save').onclick = function () {
+      var v = parseFloat($('go-off').value);
+      try { if (isFinite(v) && v !== 0) localStorage.setItem('rtx_gold_off', String(v)); else localStorage.removeItem('rtx_gold_off'); } catch (_) {}
+      say('অফসেট সেভ হয়েছে, রিলোড হচ্ছে…'); setTimeout(function () { location.reload(); }, 800);
     };
     $('td-save').onclick = function () {
       var v = $('td-key').value.trim();
