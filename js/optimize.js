@@ -23,7 +23,9 @@ window.RTX = window.RTX || {};
     return { n: n, tp3: tp3, sl: sl, be: be, tp1: tp1, hit3: n ? tp3 / n * 100 : 0, hit1: n ? tp1 / n * 100 : 0, exp: n ? rSum / n : 0 };
   }
 
+  var R_SCORES = [60, 70, 80], R_RRS = [1.5, 2, 2.5, 3], R_ENTRY = ['retest', 'fast'];
   function mkCfg(base, c) {
+    if (base.engine === 'raid') return Object.assign({}, base, { power: true, engine: 'raid', noBoard: true, mode: c.mode, ov: { minScore: c.s, minRR: c.rr }, entryMode: c.entry, beOn: c.be });
     return Object.assign({}, base, {
       power: true, engine: 'decision', noBoard: true, mode: c.mode, ov: { minScore: c.s, minRoomR: c.room },
       tp3R: c.tp3, tp2R: +(c.tp3 * 2 / 3).toFixed(2), tp1R: +(c.tp3 / 3).toFixed(2), beOn: c.be
@@ -35,7 +37,8 @@ window.RTX = window.RTX || {};
     var U = R.ultra, P = R.power, n = cs.length, split = Math.floor(n * 0.65);
     var base = U.engine(cs, htf, Object.assign({}, baseCfg), info, tfSec, mode);
     var combos = [];
-    MODES.forEach(function (m) { SCORES.forEach(function (s) { ROOMS.forEach(function (rm) { TP3S.forEach(function (t3) { BES.forEach(function (be) { combos.push({ mode: m, s: s, room: rm, tp3: t3, be: be }); }); }); }); }); });
+    if (baseCfg.engine === 'raid') MODES.forEach(function (m) { R_SCORES.forEach(function (s2) { R_RRS.forEach(function (rr) { R_ENTRY.forEach(function (en) { BES.forEach(function (be) { combos.push({ mode: m, s: s2, rr: rr, entry: en, be: be }); }); }); }); }); });
+    else MODES.forEach(function (m) { SCORES.forEach(function (s) { ROOMS.forEach(function (rm) { TP3S.forEach(function (t3) { BES.forEach(function (be) { combos.push({ mode: m, s: s, room: rm, tp3: t3, be: be }); }); }); }); }); });
     var results = [], idx = 0;
     return new Promise(function (resolve, reject) {
       function chunk() {
@@ -56,6 +59,11 @@ window.RTX = window.RTX || {};
         var top = ok.slice(0, 3).map(function (r) {
           var c = r.c;
           r.reliable = r.test.n >= 6 && r.test.exp > 0;
+          if (baseCfg.engine === 'raid') {
+            r.label = MODE_BN[c.mode] + ' · ন্যূনতম স্কোর ' + c.s + ' · লাভ-ঝুঁকি ≥ ১:' + c.rr + ' · ' + (c.entry === 'fast' ? 'দ্রুত এন্ট্রি' : 'রিটেস্ট এন্ট্রি') + ' · BE ' + (c.be ? 'চালু' : 'বন্ধ');
+            r.cfg = { power: true, engine: 'raid', mode: c.mode, ov: { minScore: c.s, minRR: c.rr }, entryMode: c.entry, beOn: c.be };
+            return r;
+          }
           r.label = MODE_BN[c.mode] + ' · ন্যূনতম স্কোর ' + c.s + ' · TP পর্যন্ত জায়গা ' + c.room + 'R · TP3 ' + c.tp3 + 'R · BE ' + (c.be ? 'চালু' : 'বন্ধ');
           r.cfg = { power: true, engine: 'decision', mode: c.mode, ov: { minScore: c.s, minRoomR: c.room }, tp3R: c.tp3, tp2R: +(c.tp3 * 2 / 3).toFixed(2), tp1R: +(c.tp3 / 3).toFixed(2), beOn: c.be };
           return r;
@@ -66,5 +74,5 @@ window.RTX = window.RTX || {};
     });
   }
 
-  R.opt = { search: search, stats: stats, mkCfg: mkCfg, COMBOS: MODES.length * SCORES.length * ROOMS.length * TP3S.length * BES.length };
+  R.opt = { search: search, stats: stats, mkCfg: mkCfg, COMBOS: MODES.length * R_SCORES.length * R_RRS.length * R_ENTRY.length * BES.length };
 })(window.RTX);
