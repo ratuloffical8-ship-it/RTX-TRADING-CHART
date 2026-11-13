@@ -162,6 +162,8 @@ window.RTX = window.RTX || {};
   }
   function paintBadge(symbol) {
     try {
+      /* দেরিতে ফেরা অন্য মার্কেটের (যেমন গোল্ডের HTF) রিকোয়েস্ট যেন বর্তমান চার্টের ব্যাজ না বদলায় */
+      var sel = document.getElementById('symbol'); if (sel && sel.value && symbol !== sel.value) return;
       var b = document.getElementById('src-badge');
       if (!b) {
         var wrap = document.getElementById('chart-wrap') || document.getElementById('chart'); if (!wrap || !wrap.parentNode) return;
