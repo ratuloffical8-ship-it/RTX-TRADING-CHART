@@ -1,3 +1,5 @@
+// ফাইলের নাম: ai.js
+// পাথ: js/ai.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — Gemini AI সহায়ক (সিগন্যাল ব্যাখ্যা + জার্নাল রিভিউ)
    কী ব্রাউজারে থাকে না: সব কল যায় আপনার Render প্রক্সির /ai এন্ডপয়েন্টে।
    লিমিট বাঁচাতে: শুধু বাটন চাপলে কল হয়, একই প্রশ্নের উত্তর ফোনে সেভ থাকে, ২০ সেকেন্ডের বিরতি, ছোট প্রম্পট। */
@@ -49,16 +51,39 @@ window.RTX = window.RTX || {};
   function result(j) { return '<div class="card">' + md(j.text) + '<div class="muted" style="font-size:11px;margin-top:6px">' + esc(j.model || '') + (j.cached ? ' · সেভ করা উত্তর (লিমিট খরচ হয়নি)' : '') + '</div></div>'; }
 
   /* ---------- সিগন্যাল ব্যাখ্যা ---------- */
+  var SYS_SIG = 'তুমি একজন ধৈর্যশীল ট্রেডিং শিক্ষক। একদম নতুন, ছোট বাচ্চার মতো শিক্ষার্থীকে বোঝাচ্ছ। সহজ বাংলায়, ছোট বাক্যে লেখো। কঠিন শব্দ (BOS, FVG, ATR ইত্যাদি) এলে সাথে সাথে এক লাইনে মানে বলে দাও। নিচের তথ্যই একমাত্র সত্য। নিজে থেকে কোনো সংখ্যা, দাম বা খবর বানাবে না। ভবিষ্যৎ দাম বা জেতার নিশ্চয়তা দেবে না। কাঠামো: ১) এক লাইনে সারকথা ২) কেন সিগন্যাল এলো (প্রতিটি কারণ আলাদা পয়েন্টে, সহজ উপমা সহ) ৩) SL, TP ও ঝুঁকি কত ডলার ৪) কোন ঘটনায় এই ট্রেড ভুল প্রমাণ হবে ৫) নতুনের জন্য একটি সতর্কতা। সর্বোচ্চ ২৮০ শব্দ। এটা আর্থিক পরামর্শ নয়।';
+
+  function facts(t, info, now, sec) {
+    var f = function (x) { return Number(x).toFixed(info.dec); }, w = t.why, L = [];
+    function bias(b) { return b === 1 ? 'বুলিশ' : b === -1 ? 'বেয়ারিশ' : 'নিরপেক্ষ'; }
+    L.push('মার্কেট: ' + info.sym + ', টাইমফ্রেম: ' + sec + ' সেকেন্ড');
+    L.push('সিগন্যাল: ' + (t.dir === 1 ? 'BUY' : 'SELL') + ', গ্রেড ' + t.grade + ', স্কোর ' + t.score + '/100, অবস্থা ' + t.status);
+    L.push('এন্ট্রি ' + f(t.entry) + ', SL ' + f(t.sl) + ', TP1 ' + f(t.tp1) + ', TP2 ' + f(t.tp2) + ', TP3 ' + f(t.tp3));
+    if (t.lot !== null && t.lot !== undefined) L.push('লট ' + t.lot.toFixed(2) + ', SL-এ ক্ষতি $' + (t.riskUsd === null ? '?' : t.riskUsd.toFixed(2)) + (t.riskPct != null ? ' = ব্যালেন্সের ' + t.riskPct.toFixed(2) + '%' : ''));
+    if (w) {
+      L.push('মোড: ' + w.modeBn);
+      L.push('বাজারের অবস্থা: ' + w.regimeBn + ' (' + w.regimeDesc + ')');
+      L.push('এন্ট্রির ধরন: ' + w.typeBn + (w.setups.length ? ', সেটআপ: ' + w.setups.join(' + ') : '') + (w.xl.length ? ', XL: ' + w.xl.join(' + ') : ''));
+      L.push('ট্রেন্ড ইন্ডিকেটর: UT Bot ' + bias(w.trendFamily.ut) + ', JDT ' + bias(w.trendFamily.jdt) + ', Supertrend ' + bias(w.trendFamily.supertrend) + ' (মিলেছে ' + w.trendFamily.agree + '/৩)');
+      L.push('বড় টাইমফ্রেম: 4H ' + bias(w.htf.h4) + ', 1H ' + bias(w.htf.h1) + (w.htf.counterTrend ? ' (একটি উল্টো, ঝুঁকি বেশি)' : ''));
+      L.push('স্ট্রাকচার: ' + bias(w.structure.trend) + (w.structure.recent ? ', সাম্প্রতিক ' + w.structure.recent : '') + (w.structure.inZone ? ', গুরুত্বপূর্ণ জোনে' : ''));
+      L.push('স্কোর ভাগ: সেটআপ ' + w.parts.setup + '/30, মোমেন্টাম ' + w.parts.momentum + '/15, ট্রেন্ড ' + w.parts.trend + '/15, বড় টাইমফ্রেম ' + w.parts.htf + '/15, স্ট্রাকচার ' + w.parts.structure + '/15, বাজারের অবস্থা ' + w.parts.regime + '/10');
+      L.push('SL কেন ওখানে: ' + w.sl.text);
+      L.push('TP: ' + w.tp.r.join('R, ') + 'R' + (w.tp.obstacle ? ', সামনের বাধা ' + w.tp.obstacle : ', সামনে বড় বাধা নেই'));
+      L.push('১০টি শর্তের ফল: ' + w.gate.map(function (g) { return (g.ok ? '✔ ' : '✘ ') + g.label; }).join('; '));
+    } else L.push('ধরন: ' + t.mode + (t.extra ? ', একমত: ' + t.extra : '') + ' (পুরোনো ইঞ্জিন, বিস্তারিত কারণ নেই)');
+    if (now && now.last && now.last.status !== 'signal') L.push('সর্বশেষ ক্যান্ডেলে: ' + now.last.text);
+    return L.join('\n');
+  }
+
   async function explain() {
     var out = document.getElementById('ai-out'), st = R.ultra && R.ultra.getState && R.ultra.getState();
     if (busy || !out) return;
     if (!st || !st.res || !st.res.trades.length) { show(out, '<div class="note-warn">ব্যাখ্যা করার মতো কোনো সিগন্যাল এখনো নেই।</div>'); return; }
-    var t = st.res.trades[st.res.trades.length - 1], info = st.info, now = st.res.now || {}, f = function (x) { return Number(x).toFixed(info.dec); };
-    var bias = function (b) { return b === 1 ? 'বুলিশ' : b === -1 ? 'বেয়ারিশ' : 'নিরপেক্ষ'; };
-    var board = (st.res.board || []).map(function (b) { return b.name + ': ' + b.n + ' ট্রেড, জয় ' + b.win.toFixed(0) + '%, ' + b.exp.toFixed(2) + 'R'; }).join('; ');
-    var p = 'মার্কেট: ' + info.sym + ', টাইমফ্রেম: ' + st.sec + ' সেকেন্ড\nসিগন্যাল: ' + (t.dir === 1 ? 'BUY' : 'SELL') + ', মোড ' + t.mode + ', একমত: ' + (t.extra || '-') + ', স্কোর ' + t.score + '/100, স্ট্যাটাস ' + t.status + ' (১=চলমান, ২-৪=TP১-৩ ছুঁয়েছে, ৫=SL, ৬=ব্রেক-ইভেন)\nএন্ট্রি ' + f(t.entry) + ', SL ' + f(t.sl) + ', TP1 ' + f(t.tp1) + ', TP2 ' + f(t.tp2) + ', TP3 ' + f(t.tp3) + '\n4H ট্রেন্ড: ' + bias(now.h4) + ', 1H ট্রেন্ড: ' + bias(now.h1) + ', চার্ট ট্রেন্ড: ' + bias(now.trend) + '\nস্কোরবোর্ড (লোড করা ক্যান্ডেলে): ' + (board || 'নেই');
+    var t = st.res.trades[st.res.trades.length - 1], info = st.info;
+    var p = facts(t, info, st.res.now, st.sec);
     busy = true; show(out, '<div class="note-info">AI ভাবছে…</div>');
-    try { show(out, result(await ask(SYS, p, 'sig|' + info.sym + '|' + st.sec + '|' + t.time + '|' + t.status))); }
+    try { show(out, result(await ask(SYS_SIG, p, 'sig2|' + info.sym + '|' + st.sec + '|' + t.time + '|' + t.status))); }
     catch (e) { show(out, '<div class="note-warn">' + esc(e.message) + '</div>'); }
     busy = false;
   }
@@ -93,4 +118,5 @@ window.RTX = window.RTX || {};
       v.appendChild(d.firstChild);
     }, 60);
   });
+  R.ai = { ask: ask, md: md, esc: esc };
 })(window.RTX);
