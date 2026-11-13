@@ -313,6 +313,7 @@ window.RTX = window.RTX || {};
   }
 
   function run(cs, base, cfg, info, tfSec, htfMode) {
+    if (cfg.engine === 'raid' && R.raid) return R.raid.run(cs, base, cfg, info, tfSec, htfMode);
     if ((cfg.engine === 'classic' || cfg.noBoard) || !R.decision) return runClassic(cs, base, cfg, info, tfSec, htfMode);
     return R.decision.run(cs, base, cfg, info, tfSec, htfMode);
   }
