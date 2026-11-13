@@ -1,19 +1,17 @@
+// ফাইলের নাম: data.js
+// পাথ: js/data.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — ডেটা: সিম্বল, টাইমফ্রেম, লাইভ প্রাইস (Binance), ডেমো ডেটা, শেখার পাঠ ও দৈনিক টাস্ক */
 window.RTX = window.RTX || {};
 (function (R) {
   'use strict';
 
+  /* শুধু ৫টি মার্কেট। BTCUSDT, ETHUSDT, ETCUSDT আসে Binance স্পট থেকে। BTC/USD ও XAU/USD (গোল্ড) আসে tools.js-এর মাধ্যমে Yahoo থেকে */
   R.SYMBOLS = [
     { id: 'BTCUSDT', name: 'BTC/USDT' },
+    { id: 'BTC/USD', name: 'BTC/USD' },
     { id: 'ETHUSDT', name: 'ETH/USDT' },
-    { id: 'BNBUSDT', name: 'BNB/USDT' },
-    { id: 'SOLUSDT', name: 'SOL/USDT' },
-    { id: 'XRPUSDT', name: 'XRP/USDT' },
-    { id: 'DOGEUSDT', name: 'DOGE/USDT' },
-    { id: 'ADAUSDT', name: 'ADA/USDT' },
-    { id: 'LTCUSDT', name: 'LTC/USDT' },
-    { id: 'XAUUSDT', name: 'GOLD · XAUUSDT (Binance Futures)' },
-    { id: 'PAXGUSDT', name: 'GOLD · PAXG/USDT (Binance Spot)' }
+    { id: 'ETCUSDT', name: 'ETC/USDT' },
+    { id: 'XAU/USD', name: 'GOLD · XAU/USD (Exness)' }
   ];
 
   R.TFS = [
@@ -87,7 +85,7 @@ window.RTX = window.RTX || {};
 
     /* ইন্টারনেট/Binance না পেলে ডেমো ডেটা */
     demo: function (symbol, sec, n, endTimeSec) {
-      var base = { BTCUSDT: 65000, ETHUSDT: 3200, BNBUSDT: 600, SOLUSDT: 150, XRPUSDT: 0.55, DOGEUSDT: 0.15, ADAUSDT: 0.45, LTCUSDT: 80 }[symbol] || 100;
+      var base = { BTCUSDT: 65000, ETHUSDT: 3200, BNBUSDT: 600, SOLUSDT: 150, XRPUSDT: 0.55, DOGEUSDT: 0.15, ADAUSDT: 0.45, LTCUSDT: 80, ETCUSDT: 20 }[symbol] || 100;
       var end = endTimeSec ? endTimeSec - sec : Math.floor(Date.now() / 1000 / sec) * sec;
       var rnd = rng(hash(symbol) + (endTimeSec || 0));
       var p = base * (0.92 + rnd() * 0.16), out = [], t = end - (n - 1) * sec, drift = 0;
