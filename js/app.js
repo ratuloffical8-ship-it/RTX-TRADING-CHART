@@ -1,3 +1,5 @@
+// ফাইলের নাম: app.js
+// পাথ: js/app.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — অ্যাপ লজিক: টপবার, টুলবার, লাইভ ডেটা, ইন্ডিকেটর শিট, শেখা ও দৈনিক টাস্ক */
 (function (R) {
   'use strict';
@@ -291,7 +293,7 @@
 
   /* ---------- শুরু ---------- */
   function start() {
-    buildTop(); buildNav(); buildLearn(); buildTasks();
+    buildTop(); buildNav(); buildLearn(); if (R.school) R.school.build($('#view-tasks')); else buildTasks();
     $('#btn-indicators').hidden = false;
     if (typeof LightweightCharts === 'undefined') {
       $('#loading').textContent = 'চার্ট লাইব্রেরি লোড হয়নি। ইন্টারনেট চেক করে পেজ রিফ্রেশ করো।';
