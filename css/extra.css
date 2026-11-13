@@ -81,3 +81,6 @@ details.fold .fbody{padding:0 12px 12px}
 .help-x{background:none;border:0;color:#aaa;font-size:20px}
 .help-b{font-size:14px;line-height:1.8;color:#d8d8d8}
 @media (orientation:landscape) and (max-height:520px){.sheet-body{max-height:96vh;max-height:96dvh}}
+
+/* Batch D: আগাম এলার্ট কার্ড (raid.js) */
+.alert-watch{border-left:3px solid #f5a623}.alert-swept{border-left:3px solid #ff7a7a}.alert-pending{border-left:3px solid #2979ff}
