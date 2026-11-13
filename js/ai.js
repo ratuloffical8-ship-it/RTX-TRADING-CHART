@@ -60,7 +60,16 @@ window.RTX = window.RTX || {};
     L.push('সিগন্যাল: ' + (t.dir === 1 ? 'BUY' : 'SELL') + ', গ্রেড ' + t.grade + ', স্কোর ' + t.score + '/100, অবস্থা ' + t.status);
     L.push('এন্ট্রি ' + f(t.entry) + ', SL ' + f(t.sl) + ', TP1 ' + f(t.tp1) + ', TP2 ' + f(t.tp2) + ', TP3 ' + f(t.tp3));
     if (t.lot !== null && t.lot !== undefined) L.push('লট ' + t.lot.toFixed(2) + ', SL-এ ক্ষতি $' + (t.riskUsd === null ? '?' : t.riskUsd.toFixed(2)) + (t.riskPct != null ? ' = ব্যালেন্সের ' + t.riskPct.toFixed(2) + '%' : ''));
-    if (w) {
+    if (w && w.raid) {
+      var r = w.raid;
+      L.push('মোড: ' + w.modeBn + ', এন্ট্রি ধরন: ' + r.entryNote);
+      L.push('ধারণা: লিকুইডিটি রেইড রিভার্সাল (ICT)। ১) পুল: ' + r.poolKindBn + ' ' + r.poolPrice + ' ২) সুইপ: দাম ' + r.ext + ' পর্যন্ত গিয়ে উইকসহ ভেতরে ফিরে বন্ধ (উইক ' + r.wickAtr + '×ATR) ৩) CISD: ' + r.cisdLvl + ' লেভেল ভেঙে বন্ধ, বডি ' + r.cisdBody + '×ATR' + (r.fvg ? ', FVG আছে' : ''));
+      L.push('বড় টাইমফ্রেম: 4H ' + bias(w.htf.h4) + ', 1H ' + bias(w.htf.h1) + (w.htf.counterTrend ? ' (একটি উল্টো)' : ''));
+      L.push('SL: সুইপের চূড়া ' + r.ext + '-এর বাইরে বাফারসহ। TP: ' + w.tp.r.map(function (x) { return x.toFixed(1); }).join('R, ') + 'R' + (r.tp3KindBn ? ', TP৩ = ' + r.tp3KindBn + ' ' + r.tp3Price : ''));
+      L.push('অতিরিক্ত: RSI ডাইভারজেন্স ' + (r.div ? 'আছে' : 'নেই') + ', প্রিমিয়াম/ডিসকাউন্ট ' + (r.pdOk ? 'মিলেছে' : 'মেলেনি') + ', সেশন ' + r.session);
+      L.push('স্কোর ভাগ: সুইপ ' + w.parts.sweep + '/25, CISD ' + w.parts.cisd + '/20, বড় টাইমফ্রেম ' + w.parts.htf + '/20, লাভ-ঝুঁকি ' + w.parts.rr + '/15, প্রসঙ্গ ' + w.parts.ctx + '/20');
+      L.push('শর্তের ফল: ' + w.gate.map(function (g) { return (g.ok ? '✔ ' : '✘ ') + g.label; }).join('; '));
+    } else if (w) {
       L.push('মোড: ' + w.modeBn);
       L.push('বাজারের অবস্থা: ' + w.regimeBn + ' (' + w.regimeDesc + ')');
       L.push('এন্ট্রির ধরন: ' + w.typeBn + (w.setups.length ? ', সেটআপ: ' + w.setups.join(' + ') : '') + (w.xl.length ? ', XL: ' + w.xl.join(' + ') : ''));
