@@ -119,7 +119,32 @@ window.RTX = window.RTX || {};
      আগে সোর্স চুপচাপ বদলে যেত (স্পট ↔ ফিউচার্স), তাই একই চার্টে দুই সোর্সের ক্যান্ডেল মিশে দামে ফাঁক তৈরি হতো।
      এখন প্রথমবার যে সোর্স কাজ করে, পুরো সেশনে (পুরোনো ক্যান্ডেল আনা ও লাইভসহ) শুধু সেটাই চলে। সোর্স বদলাতে হলে রিলোড।
      গোল্ডের অগ্রাধিকার: Yahoo XAUUSD=X (স্পট) → না পেলে Binance XAUUSDT (এটা স্পট নয়, তাই চার্টে স্পষ্ট লেখা থাকে) */
-  var LOCK = {};
+  var LOCK = {}, FROMCACHE = {}, BG = {};
+  function fire(symbol, tf) { try { window.dispatchEvent(new CustomEvent('rtx-fx-refresh', { detail: { symbol: symbol, tf: tf } })); } catch (_) {} }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  /* শেষ সফল ক্যান্ডেল ফোনে ক্যাশ: পরেরবার চার্ট সঙ্গে সঙ্গে খোলে, পেছনে নতুন ডেটা আসে */
+  function ckey(s2, tf) { return 'rtx_fxc_' + s2 + '_' + tf; }
+  function cacheGet(s2, tf) { try { var o = JSON.parse(localStorage.getItem(ckey(s2, tf)) || 'null'); if (o && Array.isArray(o.cs) && o.cs.length > 50 && Date.now() - o.t < 3 * 864e5) return o; } catch (_) {} return null; }
+  function cachePut(s2, tf, cs) { try { localStorage.setItem(ckey(s2, tf), JSON.stringify({ t: Date.now(), src: LOCK[s2] || 'yahoo', cs: cs.slice(-600) })); } catch (_) {} }
+  function post(s2, tf, cs) { return (tf === '3m' && cs.length > 1 && LOCK[s2] !== 'binance') ? cs.slice(1) : cs; }
+  async function bgRefresh(symbol, tf, limit) {
+    var k = symbol + '|' + tf; if (BG[k]) return; BG[k] = 1;
+    for (var i = 0; i < 10; i++) {
+      try { var cs = post(symbol, tf, await fxOne(symbol, tf, Math.min(limit || 1000, 1000), undefined, LOCK[symbol] || 'yahoo')); cachePut(symbol, tf, cs); FROMCACHE[symbol] = false; BG[k] = 0; fire(symbol, tf); return; }
+      catch (e) { if (e && (e.message === 'NO_PROXY' || e.message === 'NO_KEY')) break; await sleep(8000); }
+    }
+    BG[k] = 0; FROMCACHE[symbol] = 'fail'; paintBadge(symbol);
+  }
+  /* সার্ভার ঘুমিয়ে থাকলে জাগাই; খোলা থাকলে ৯ মিনিট পরপর পিং (Render ফ্রি ১৫ মিনিট নিষ্ক্রিয় থাকলে ঘুমায়) */
+  function wake() { var b = proxyUrl(); if (!b) return; try { fetch(b + '/', { mode: 'no-cors', cache: 'no-store' }).catch(function () {}); } catch (_) {} }
+  setTimeout(wake, 300); setInterval(function () { if (!document.hidden) wake(); }, 9 * 60 * 1000);
+  /* ফলব্যাকে নামার পর Yahoo জাগলে নিজে থেকে স্পটে ফিরি (পুরো চার্ট নতুন করে লোড, তাই সোর্স মিশে না) */
+  function probeYahoo(symbol, tf) {
+    var n = 0, iv = setInterval(async function () {
+      if (++n > 24 || LOCK[symbol] !== 'binance') { clearInterval(iv); return; }
+      try { await yh(symbol, tf, 2); clearInterval(iv); delete LOCK[symbol]; say('✅ Yahoo সার্ভার জেগেছে। গোল্ডের স্পট ডেটা (Exness-এর কাছাকাছি) লোড হচ্ছে…'); fire(symbol, tf); } catch (_) {}
+    }, 15000);
+  }
   function goldOff() { var v = parseFloat(localStorage.getItem('rtx_gold_off')); return isFinite(v) ? v : 0; }
   function applyOff(symbol, cs) {
     if (symbol !== 'XAU/USD') return cs;
@@ -130,6 +155,8 @@ window.RTX = window.RTX || {};
     if (!isFx(symbol)) return 'Binance স্পট ' + symbol;
     var k = LOCK[symbol], off = symbol === 'XAU/USD' ? goldOff() : 0, tail = off ? ' · অফসেট ' + (off > 0 ? '+' : '') + off : '';
     if (!k) return symbol + ' সোর্স লোড হচ্ছে';
+    if (FROMCACHE[symbol] === true) tail += ' · ক্যাশ, নতুন ডেটা আসছে…';
+    if (FROMCACHE[symbol] === 'fail') tail += ' · ক্যাশ (নতুন ডেটা আনা যায়নি, সার্ভার চেক করো)';
     if (k === 'binance') return 'Binance ফিউচার্স XAUUSDT (স্পট নয়, Exness থেকে তফাত হতে পারে)' + tail;
     if (k === 'td') return 'Twelve Data ' + symbol + tail;
     return 'Yahoo ' + (YSYM[symbol] || [symbol])[0] + (symbol === 'XAU/USD' ? ' (স্পট)' : '') + tail;
@@ -146,16 +173,17 @@ window.RTX = window.RTX || {};
     var first = fxSrc() === 'td' ? 'td' : 'yahoo', cs;
     try {
       /* Render-এর ফ্রি প্রক্সি ঘুমিয়ে থাকলে জাগতে ৩০-৬০ সেকেন্ড লাগে, তাই ভুল সোর্সে নামার আগে ৩ বার চেষ্টা (৬ সেকেন্ড ফাঁকে) */
-      var tries = symbol === 'XAU/USD' ? 3 : 1, lastE = null;
+      var tries = symbol === 'XAU/USD' ? 5 : 1, lastE = null, wm = setTimeout(function () { say('গোল্ডের ডেটা সার্ভার ঘুম থেকে জাগছে, ৪০-৬০ সেকেন্ড লাগতে পারে। একবার জাগলে পরে দ্রুত খুলবে।'); }, 4000);
       for (var ti = 0; ti < tries; ti++) {
         try { cs = await fxOne(symbol, tf, size, endTime, first); LOCK[symbol] = first; lastE = null; break; }
-        catch (e1) { lastE = e1; if (e1 && (e1.message === 'NO_PROXY' || e1.message === 'NO_KEY')) break; if (ti < tries - 1) await new Promise(function (r) { setTimeout(r, 6000); }); }
+        catch (e1) { lastE = e1; if (e1 && (e1.message === 'NO_PROXY' || e1.message === 'NO_KEY')) break; if (ti < tries - 1) await new Promise(function (r) { setTimeout(r, 8000); }); }
       }
+      clearTimeout(wm);
       if (lastE) throw lastE;
     }
     catch (e) {
       if (symbol !== 'XAU/USD') throw e;
-      cs = await fxOne(symbol, tf, size, endTime, 'binance'); LOCK[symbol] = 'binance';
+      cs = await fxOne(symbol, tf, size, endTime, 'binance'); LOCK[symbol] = 'binance'; probeYahoo(symbol, tf);
       setTimeout(function () { say('Yahoo থেকে গোল্ডের স্পট ডেটা আসেনি, তাই Binance XAUUSDT (ফিউচার্স) দেখানো হচ্ছে। দামে সামান্য তফাত থাকতে পারে।'); }, 1500);
     }
     return cs;
@@ -176,9 +204,19 @@ window.RTX = window.RTX || {};
 
   R.data.klines = async function (symbol, tf, limit, endTime) {
     if (!isFx(symbol)) { var r0 = await origK.apply(R.data, arguments); setTimeout(function () { paintBadge(symbol); }, 0); return r0; }
+    if (!endTime) {
+      var cc = cacheGet(symbol, tf);
+      if (cc) {
+        if (!LOCK[symbol]) LOCK[symbol] = cc.src;
+        var fresh = Date.now() - cc.t < 30000; FROMCACHE[symbol] = !fresh;
+        if (!fresh) bgRefresh(symbol, tf, limit);
+        setTimeout(function () { paintBadge(symbol); }, 0);
+        return applyOff(symbol, cc.cs.slice());
+      }
+    }
     try {
       var cs = await lockedFetch(symbol, tf, Math.min(limit || 1000, 1000), endTime);
-      if (tf === '3m' && cs.length > 1 && LOCK[symbol] !== 'binance') cs.shift();
+      cs = post(symbol, tf, cs); if (!endTime && LOCK[symbol] !== 'binance') cachePut(symbol, tf, cs);
       setTimeout(function () { paintBadge(symbol); }, 0);
       return applyOff(symbol, cs);
     } catch (e) {
