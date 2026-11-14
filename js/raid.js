@@ -238,7 +238,9 @@ window.RTX = window.RTX || {};
       parts.cisd = Math.min(20, 12 + (body >= 1 ? 4 : body >= 0.6 ? 2 : 0) + (fvg ? 4 : 0));
       parts.htf = hc.pts;
       parts.rr = rr >= 4 ? 15 : rr >= 3 ? 12 : rr >= 2 ? 9 : rr >= 1.5 ? 5 : 0;
-      parts.ctx = (pdOk ? 6 : 0) + (lonny || info.isCrypto ? 5 : 0) + (div ? 5 : 0) + (S.trend[m] === d ? 4 : 0);
+      var hasDelta = cs[m] && cs[m].buyVol !== undefined && cs[m - 1] && cs[m - 1].buyVol !== undefined, dsum = 0, dOk = false;
+      if (hasDelta) { var k0 = Math.max(ev.extI, m - 1), kk; for (kk = k0; kk <= m; kk++) dsum += 2 * cs[kk].buyVol - cs[kk].volume; dOk = d === -1 ? dsum < 0 : dsum > 0; }
+      parts.ctx = hasDelta ? ((pdOk ? 5 : 0) + (lonny || info.isCrypto ? 4 : 0) + (div ? 4 : 0) + (S.trend[m] === d ? 3 : 0) + (dOk ? 4 : 0)) : ((pdOk ? 6 : 0) + (lonny || info.isCrypto ? 5 : 0) + (div ? 5 : 0) + (S.trend[m] === d ? 4 : 0));
       var score = Math.min(100, Math.round(parts.sweep + parts.cisd + parts.htf + parts.rr + parts.ctx));
       gate(7, 'score', 'স্কোর সীমা পার (' + M.minScore + ')', score >= M.minScore, 'স্কোর ' + score + '/১০০');
 
@@ -254,7 +256,7 @@ window.RTX = window.RTX || {};
       gate(8, rkKey || 'risk', 'ঝুঁকির সীমা ঠিক আছে', !rkKey, rkNote);
 
       var failed = G.filter(function (g) { return !g.ok && g.block; })[0] || null;
-      return { ok: !failed, fail: failed, gate: G, parts: parts, score: score, d: d, entry: entry, limit: limit, entryMode: mode2, entryNote: entryNote, sl: slLvl, riskD: riskD, tp1: tp1, tp2: tp2, tp3: tp3, tpR: tpR, tpNotes: tpNotes, tp3o: tp3o, rr: rr, lot: lot, riskUsd: riskUsd, riskPct: riskPct, warn: warn, hc: hc, kindBn: kindBn, wickAtr: wickAtr, body: body, fvg: !!fvg, div: div, pdOk: pdOk, se: se, strong: strong, capped: capped };
+      return { ok: !failed, fail: failed, gate: G, parts: parts, score: score, d: d, entry: entry, limit: limit, entryMode: mode2, entryNote: entryNote, sl: slLvl, riskD: riskD, tp1: tp1, tp2: tp2, tp3: tp3, tpR: tpR, tpNotes: tpNotes, tp3o: tp3o, rr: rr, lot: lot, riskUsd: riskUsd, riskPct: riskPct, warn: warn, hc: hc, kindBn: kindBn, wickAtr: wickAtr, body: body, fvg: !!fvg, div: div, pdOk: pdOk, se: se, strong: strong, capped: capped, hasDelta: hasDelta, dOk: dOk, dsum: dsum };
     }
 
     function brief(d) { return d === 1 ? 'BUY' : 'SELL'; }
@@ -305,7 +307,7 @@ window.RTX = window.RTX || {};
         sl: { kind: 'liquidity', text: 'সুইপের ' + (dd === -1 ? 'সর্বোচ্চ' : 'সর্বনিম্ন') + ' ' + rt(ev0.ext) + '-এর বাইরে বাফারসহ', widened: false },
         tp: { r: evl.tpR.map(function (x) { return +x.toFixed(2); }), notes: evl.tpNotes, room: null, obstacle: null },
         risk: { lot: evl.lot, usd: evl.riskUsd, pct: evl.riskPct, balance: balance, lotMode: lotMode, warn: evl.warn }, costs: { spread: spec.spread, slip: spec.slip, on: cfg.costOn !== false },
-        raid: { poolKind: ev0.pool.kind, poolKindBn: evl.kindBn, poolPrice: ev0.pool.p, ext: rt(ev0.ext), wickAtr: +evl.wickAtr.toFixed(2), sweepTime: T[ev0.sweepBar], cisdLvl: rt(ev0.lvl), cisdBody: +evl.body.toFixed(2), fvg: evl.fvg, div: evl.div, pdOk: evl.pdOk, session: evl.se.name, entryMode: evl.entryMode, entryNote: evl.entryNote, rr: +evl.rr.toFixed(2), tp3Kind: evl.tp3o ? evl.tp3o.kind : null, tp3KindBn: evl.tp3o ? KIND_BN[evl.tp3o.kind] : null, tp3Price: evl.tp3o ? evl.tp3o.price : null, capped: evl.capped }
+        raid: { poolKind: ev0.pool.kind, poolKindBn: evl.kindBn, poolPrice: ev0.pool.p, ext: rt(ev0.ext), wickAtr: +evl.wickAtr.toFixed(2), sweepTime: T[ev0.sweepBar], cisdLvl: rt(ev0.lvl), cisdBody: +evl.body.toFixed(2), fvg: evl.fvg, div: evl.div, pdOk: evl.pdOk, session: evl.se.name, entryMode: evl.entryMode, entryNote: evl.entryNote, rr: +evl.rr.toFixed(2), tp3Kind: evl.tp3o ? evl.tp3o.kind : null, tp3KindBn: evl.tp3o ? KIND_BN[evl.tp3o.kind] : null, tp3Price: evl.tp3o ? evl.tp3o.price : null, capped: evl.capped, hasDelta: evl.hasDelta, deltaOk: evl.dOk, delta: evl.dsum }
       };
       if (cur && cur.status === 0) { cur.status = 7; cur.endTime = T[i]; }
       var pending = evl.entryMode === 'retest';
