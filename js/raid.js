@@ -14,9 +14,9 @@ window.RTX = window.RTX || {};
 
   /* তিনটি মোড: শুরুর মান (পরীক্ষায় প্রমাণিত সেরা নয়) — cfg.ov দিয়ে বদলানো যায় */
   var MODES = {
-    safe: { minScore: 80, minRR: 2.5, htf: 'strict', maxSweepAtr: 2.0, pend: 10, volLow: 0.6, volHigh: 2.5 },
-    smart: { minScore: 70, minRR: 2.0, htf: 'normal', maxSweepAtr: 2.5, pend: 12, volLow: 0.5, volHigh: 3 },
-    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', maxSweepAtr: 3.0, pend: 14, volLow: 0.4, volHigh: 3.5 }
+    safe: { minScore: 80, minRR: 2.5, htf: 'strict', mss: 'strict', maxSweepAtr: 2.0, pend: 10, volLow: 0.6, volHigh: 2.5 },
+    smart: { minScore: 70, minRR: 2.0, htf: 'normal', mss: true, maxSweepAtr: 2.5, pend: 12, volLow: 0.5, volHigh: 3 },
+    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', mss: false, maxSweepAtr: 3.0, pend: 14, volLow: 0.4, volHigh: 3.5 }
   };
   var MODE_INFO = {
     safe: { name: 'SAFE (নিরাপদ)', desc: 'শুধু সেরা সেটআপ। বড় টাইমফ্রেম মিলতে হবে, লাভ-ঝুঁকির অনুপাত কমপক্ষে ১:২.৫। সিগন্যাল কম আসে।' },
@@ -28,7 +28,7 @@ window.RTX = window.RTX || {};
   var STRONG = { eqH: 1, eqL: 1, pdh: 1, pdl: 1, asiaH: 1, asiaL: 1 };
   var REJ_BN = {
     htf: 'বড় টাইমফ্রেম (4H/1H) বিপরীতে', sweepq: 'সুইপ খুব বড় (এটা ব্রেকআউট হতে পারে)', nocisd: 'সুইপের পর CISD আসেনি', session: 'সেশনের বাইরে', vol: 'ভোলাটিলিটি ঠিক নেই', news: 'নিউজ-বিরতির সময়',
-    sl: 'SL গ্রহণযোগ্য নয় (খুব কাছে বা খুব দূরে)', rr: 'লিকুইডিটি পর্যন্ত লাভ-ঝুঁকির অনুপাত কম', score: 'স্কোর সীমার নিচে', live: 'আগের ট্রেড এখনো চলছে', lotrisk: 'ব্যালেন্সের তুলনায় ঝুঁকি বেশি', missed: 'লিমিট এন্ট্রি মেলেনি (দাম ফেরেনি)'
+    sl: 'SL গ্রহণযোগ্য নয় (খুব কাছে বা খুব দূরে)', rr: 'লিকুইডিটি পর্যন্ত লাভ-ঝুঁকির অনুপাত কম', score: 'স্কোর সীমার নিচে', live: 'আগের ট্রেড এখনো চলছে', lotrisk: 'ব্যালেন্সের তুলনায় ঝুঁকি বেশি', missed: 'লিমিট এন্ট্রি মেলেনি (দাম ফেরেনি)', mss: '৫ মিনিটের স্ট্রাকচার এখনো উল্টোয়নি (শুধু CISD যথেষ্ট নয়)', cool: 'একই দিকে সদ্য SL খেয়েছে, ১ ঘণ্টা বিরতি'
   };
 
   function bnB(b) { return b === 1 ? 'বুলিশ' : b === -1 ? 'বেয়ারিশ' : 'নিরপেক্ষ'; }
@@ -148,6 +148,7 @@ window.RTX = window.RTX || {};
     var evByBar = {};
     D.events.forEach(function (e, idx) { e.id = idx; (evByBar[e.sweepBar] = evByBar[e.sweepBar] || []).push(e); });
     var open = [];          // CISD-র অপেক্ষায় থাকা সুইপ
+    var lastSl = { '1': -1e9, '-1': -1e9 };
     var trades = [], cur = null, stats = { candidates: 0, signals: 0, rejected: {} }, lastEval = null, sigDone = {};
     function rej(key) { stats.rejected[key] = (stats.rejected[key] || 0) + 1; }
 
@@ -182,7 +183,9 @@ window.RTX = window.RTX || {};
       var sweepOk = wickAtr <= M.maxSweepAtr;
       gate(2, 'sweepq', 'লিকুইডিটি সুইপ পরিষ্কার', sweepOk, kindBn + ' (' + ev.pool.p + ') ' + (d === -1 ? 'ছাড়িয়ে ওপরে ' : 'ছাড়িয়ে নিচে ') + wickAtr.toFixed(2) + '×ATR উইক টেনে ভেতরে ফিরে বন্ধ' + (sweepOk ? '' : ' — অতিরিক্ত বড়, ব্রেকআউটের মতো'));
       var body = Math.abs(O[m] - C[m]) / a;
-      gate(3, 'cisd', 'CISD নিশ্চিত', true, 'ক্যান্ডেল ' + (d === -1 ? 'নিচে' : 'ওপরে') + ' ' + ev.lvl + '-এর ' + (d === -1 ? 'নিচে' : 'ওপরে') + ' বন্ধ, বডি ' + body.toFixed(2) + '×ATR');
+      var needMss = !!M.mss && (M.mss === 'strict' ? S.trend[m] !== d : S.trend[m] === -d), mssOk = true, jj;
+      if (needMss) { mssOk = false; for (jj = Math.max(0, ev.sweepBar - 1); jj <= m; jj++) { if (S.choch[jj] === d || S.bos[jj] === d) { mssOk = true; break; } } }
+      gate(3, mssOk ? 'cisd' : 'mss', 'CISD নিশ্চিত + ৫মি স্ট্রাকচার শিফট', mssOk, (needMss ? (mssOk ? 'সুইপের পর ৫মি স্ট্রাকচার ভেঙে ' + (d === -1 ? 'নিচে' : 'ওপরে') + ' গেছে ✔ · ' : 'সুইপের পর ৫মি স্ট্রাকচার (সুইং ' + (d === -1 ? 'লো' : 'হাই') + ') ভাঙেনি, তাই এটা শুধু ছোট পুলব্যাক হতে পারে · ') : '') + 'ক্যান্ডেল ' + (d === -1 ? 'নিচে' : 'ওপরে') + ' ' + ev.lvl + '-এর ' + (d === -1 ? 'নিচে' : 'ওপরে') + ' বন্ধ, বডি ' + body.toFixed(2) + '×ATR');
 
       // এন্ট্রি
       var fvg = d === -1 ? (m >= 2 && H[m] < L[m - 2] ? { top: L[m - 2], bot: H[m] } : null) : (m >= 2 && L[m] > H[m - 2] ? { top: L[m], bot: H[m - 2] } : null);
@@ -253,6 +256,7 @@ window.RTX = window.RTX || {};
         if (!rkKey && riskPct !== null && riskPct > maxRiskPct) { rkKey = 'lotrisk'; rkNote = lot.toFixed(2) + ' লটে এই SL-এ ঝুঁকি $' + riskUsd.toFixed(2) + ' = ব্যালেন্সের ' + riskPct.toFixed(1) + '% (সীমা ' + maxRiskPct + '%, সেটিংসে বদলানো যায়)'; }
         if (!rkKey) { warn = riskPct !== null && riskPct > 5; rkNote = lot.toFixed(2) + ' লটে ঝুঁকি $' + (riskUsd === null ? '?' : riskUsd.toFixed(2)) + (riskPct !== null ? ' = ব্যালেন্সের ' + riskPct.toFixed(1) + '%' : '') + (warn ? ' (৫%-এর বেশি, সাবধান)' : ''); }
       }
+      if (!rkKey && (m - lastSl[d]) < 12) { rkKey = 'cool'; rkNote = 'এই দিকের শেষ ট্রেড ' + (m - lastSl[d]) + ' ক্যান্ডেল আগে SL খেয়েছে। ১২ ক্যান্ডেল (১ ঘণ্টা) অপেক্ষা'; }
       gate(8, rkKey || 'risk', 'ঝুঁকির সীমা ঠিক আছে', !rkKey, rkNote);
 
       var failed = G.filter(function (g) { return !g.ok && g.block; })[0] || null;
@@ -278,6 +282,7 @@ window.RTX = window.RTX || {};
           for (k = 0; k < evs.length; k++) cur.events.push({ time: T[i], type: evs[k] });
         }
       }
+      if (cur && cur.status === 5 && !cur.slMark) { cur.slMark = 1; lastSl[cur.dir] = i; }
       if (!nn(atr[i]) || i < 60) continue;
 
       // ২) নতুন সুইপ (এই বারে নিশ্চিত হয়েছে) → CISD-র অপেক্ষায় রাখি
