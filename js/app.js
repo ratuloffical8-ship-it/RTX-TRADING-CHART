@@ -293,7 +293,7 @@
 
   /* ---------- শুরু ---------- */
   function start() {
-    buildTop(); buildNav(); buildLearn(); if (R.school) R.school.build($('#view-tasks')); else buildTasks();
+    buildTop(); buildNav(); window.addEventListener('rtx-fx-refresh', function (e) { var d = e.detail || {}; if (d.symbol === state.symbol && d.tf === state.tf) load(); }); if (R.school) R.school.build($('#view-tasks')); else buildTasks();
     $('#btn-indicators').hidden = false;
     if (typeof LightweightCharts === 'undefined') {
       $('#loading').textContent = 'চার্ট লাইব্রেরি লোড হয়নি। ইন্টারনেট চেক করে পেজ রিফ্রেশ করো।';
