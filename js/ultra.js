@@ -532,7 +532,7 @@ window.RTX = window.RTX || {};
     ls.push('<b>৫) বড় টাইমফ্রেম:</b> 4H ' + bn(w.htf.h4) + ', 1H ' + bn(w.htf.h1) + (w.htf.counterTrend ? ' — একটি বিপরীতে, ঝুঁকি বেশি' : ''));
     ls.push('<b>৬) SL কেন ওখানে:</b> সুইপের ' + (b ? 'সর্বনিম্ন' : 'সর্বোচ্চ') + ' ' + f(r.ext) + '-এর বাইরে বাফার সহ। দাম ওটা পার হলে সুইপের ধারণাই ভুল প্রমাণিত হয়।');
     ls.push('<b>৭) টার্গেট:</b> TP১ ' + w.tp.r[0].toFixed(1) + 'R, TP২ ' + w.tp.r[1].toFixed(1) + 'R, TP৩ ' + w.tp.r[2].toFixed(1) + 'R' + (r.tp3KindBn ? ' (TP৩ = ' + esc(r.tp3KindBn) + ' ' + f(r.tp3Price) + ')' : '') + (w.tp.notes.length ? '। ' + esc(w.tp.notes.join('; ')) : '') + (r.capped ? '। লিকুইডিটি অনেক দূরে, তাই সর্বোচ্চ সীমায় রাখা হয়েছে' : ''));
-    ls.push('<b>৮) অতিরিক্ত সমর্থন:</b> ' + (r.div ? 'RSI ডাইভারজেন্স আছে ✅' : 'RSI ডাইভারজেন্স নেই') + ' · ' + (r.pdOk ? (b ? 'ডিসকাউন্ট' : 'প্রিমিয়াম') + ' এলাকায় ✅' : 'প্রিমিয়াম/ডিসকাউন্ট মেলেনি') + ' · সেশন: ' + esc(r.session));
+    ls.push('<b>৮) অতিরিক্ত সমর্থন:</b> ' + (r.div ? 'RSI ডাইভারজেন্স আছে ✅' : 'RSI ডাইভারজেন্স নেই') + ' · ' + (r.pdOk ? (b ? 'ডিসকাউন্ট' : 'প্রিমিয়াম') + ' এলাকায় ✅' : 'প্রিমিয়াম/ডিসকাউন্ট মেলেনি') + ' · সেশন: ' + esc(r.session) + (r.hasDelta ? ' · Delta (সুইপ→CISD): ' + (r.deltaOk ? 'দিকের সাথে মেলে ✅' : 'মেলেনি') : ''));
     ls.push('<b>স্কোর ' + w.score + '/১০০</b> (ন্যূনতম ' + w.minScore + '): সুইপ ' + P.sweep + '/' + M.sweep + ' · CISD ' + P.cisd + '/' + M.cisd + ' · বড় টাইমফ্রেম ' + P.htf + '/' + M.htf + ' · লাভ-ঝুঁকি ' + P.rr + '/' + M.rr + ' · প্রসঙ্গ ' + P.ctx + '/' + M.ctx + '। স্কোর শুধু কয়টা শর্ত মিলেছে তা বলে, জেতার সম্ভাবনা নয়।');
     ls.push('<b>ঝুঁকি:</b> ' + mny.lot.toFixed(2) + ' লটে SL ছুঁলে ক্ষতি ' + money(mny.risk) + (mny.pct !== null ? ' = ব্যালেন্স ' + money(mny.bal) + '-এর ' + mny.pct.toFixed(2) + '%' : '') + (w.risk.warn ? ' ⚠️ ৫%-এর বেশি' : '') + (w.costs.on ? '। স্প্রেড ' + w.costs.spread + ' ও স্লিপেজ ' + w.costs.slip + ' হিসাবে ধরা আছে' : ''));
     var g = w.gate.map(function (x) { return '<div class="gate ' + (x.ok ? 'ok' : 'no') + '">' + (x.ok ? '✅' : '❌') + ' ' + esc(x.label) + (x.note ? '<span>' + esc(x.note) + '</span>' : '') + '</div>'; }).join('');
@@ -570,6 +570,7 @@ window.RTX = window.RTX || {};
         kv('SL', f(t.slNow) + (t.beMoved ? ' (ব্রেক-ইভেন)' : ' (' + pip(t.entry - t.sl) + ' · ' + money(-mny.risk, true) + ')'), 'dn') +
         kv('TP1', f(t.tp1) + ' (' + pip(t.tp1 - t.entry) + ' · ' + money(mny.tp1, true) + ')', 'up') + kv('TP2', f(t.tp2) + ' (' + pip(t.tp2 - t.entry) + ' · ' + money(mny.tp2, true) + ')', 'up') + kv('TP3', f(t.tp3) + ' (' + pip(t.tp3 - t.entry) + ' · ' + money(mny.tp3, true) + ')', 'up') +
         kv('লট', mny.lot.toFixed(2)) + kv('SL-এ ক্ষতি', money(mny.risk) + (mny.pct !== null ? ' (ব্যালেন্সের ' + mny.pct.toFixed(2) + '%)' : ''), 'dn') + '</div>';
+      if (R.flow && info.isCrypto) { R.flow.prime(); var fc = R.flow.confirm(t.dir); h += '<div class="card"><b>📊 অর্ডারফ্লো কনফার্মেশন (এখনকার)</b><div class="note-info">' + esc(fc.note) + '</div><button class="btn" style="width:100%;margin-top:6px" onclick="RTX.flow.open()">Delta, টেপ, DOM, ফুটপ্রিন্ট, হিটম্যাপ দেখো</button></div>'; }
       h += '<div class="card">' + whyHtml(t, info, mny) + '</div>';
     } else h += '<div class="card muted">এই চার্টে এখনো কোনো সিগন্যাল নেই।</div>';
 
