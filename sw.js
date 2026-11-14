@@ -1,6 +1,6 @@
 // ফাইলের নাম: sw.js | পাথ: sw.js (GitHub রিপোর রুটে)
 /* RTX Chart — সার্ভিস ওয়ার্কার: অফলাইনেও অ্যাপের ফাইল খোলে, ডিপ্লয়ের পর অনলাইনে নতুন ভার্সন আসে */
-var CACHE = 'rtx-chart-v11';
+var CACHE = 'rtx-chart-v12';
 var SHELL = [
   './', 'index.html', 'manifest.json', 'icon-512.png',
   'css/style.css', 'css/extra.css',
