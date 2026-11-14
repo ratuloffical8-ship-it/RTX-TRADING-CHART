@@ -17,7 +17,7 @@ window.RTX = window.RTX || {};
     showHist: true, maxHist: 10,
     power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true, autoOpt: true,
     xOC: true, xBrk: true, xDon: true, xMA: true, xST: true, xAr: true,
-    mode: 'smart', engine: 'raid', entryMode: 'retest', maxRiskPct: 10, lotMode: 'fixed', lot: 0.01, costOn: true, specs: {}, newsBlocks: []
+    mode: 'smart', engine: 'raid', strategy: 'raid', entryMode: 'retest', maxRiskPct: 10, lotMode: 'fixed', lot: 0.01, costOn: true, specs: {}, newsBlocks: []
   };
   var ENG = ['Sweep Reclaim', 'CRT + TBS', 'Wyckoff + ICT', 'QM + SMC', 'Price Action + Fib'];
   var SHORT = { 'Sweep Reclaim': 'Sweep', 'CRT + TBS': 'CRT', 'Wyckoff + ICT': 'Wyckoff', 'QM + SMC': 'QM', 'Price Action + Fib': 'Fib' };
@@ -149,6 +149,7 @@ window.RTX = window.RTX || {};
     var swBullBar = null, swBullLvl = null, swBullExt = null, swBearBar = null, swBearLvl = null, swBearExt = null;
     var lastSigBar = -100000, cur = null, trades = [];
     var rawDir = new Array(n).fill(0), rawLvl = new Array(n).fill(null), rawEng = new Array(n).fill(null);
+    var engSig = [0, 1, 2, 3, 4].map(function () { return new Array(n).fill(0); }), engLvl = [0, 1, 2, 3, 4].map(function () { return new Array(n).fill(null); });
 
     for (i = 0; i < n; i++) {
       var a = atr[i];
@@ -204,6 +205,7 @@ window.RTX = window.RTX || {};
       var bullSw = cfg.enSweep && swBullBar !== null && i > swBullBar && C[i] > swBullLvl && C[i] > O[i] && C[i] > H[i - 1];
       var bearSw = cfg.enSweep && swBearBar !== null && i > swBearBar && C[i] < swBearLvl && C[i] < O[i] && C[i] < L[i - 1];
       var lvB1 = bullSw ? swBullExt : null, lvS1 = bearSw ? swBearExt : null;
+      if (cfg.perEngine) { if (bullSw) { swBullBar = null; swBullLvl = null; swBullExt = null; } if (bearSw) { swBearBar = null; swBearLvl = null; swBearExt = null; } }  // একক স্ট্র্যাটেজি: একটি সুইপ থেকে একটিই সিগন্যাল
 
       // ইঞ্জিন ২: CRT + TBS
       var crtIdx = -1;
@@ -262,7 +264,7 @@ window.RTX = window.RTX || {};
       var sF = [lvS1 !== null, lvS2 !== null, lvS3 !== null, lvS4 !== null, lvS5 !== null];
       var bLv = [lvB1, lvB2, lvB3, lvB4, lvB5], sLv = [lvS1, lvS2, lvS3, lvS4, lvS5];
       var bullCnt = 0, bearCnt = 0;
-      for (k = 0; k < 5; k++) { if (bF[k]) bullCnt++; if (sF[k]) bearCnt++; }
+      for (k = 0; k < 5; k++) { if (bF[k]) bullCnt++; if (sF[k]) bearCnt++; if (bF[k] && !sF[k]) { engSig[k][i] = 1; engLvl[k][i] = bLv[k]; } else if (sF[k] && !bF[k]) { engSig[k][i] = -1; engLvl[k][i] = sLv[k]; } }
       var dir = bullCnt > bearCnt ? 1 : bearCnt > bullCnt ? -1 : 0;
       rawDir[i] = dir;
       if (dir !== 0) { rawEng[i] = []; var fe = dir === 1 ? bF : sF; for (k = 0; k < 5; k++) if (fe[k]) rawEng[i].push(k); }
@@ -316,13 +318,13 @@ window.RTX = window.RTX || {};
       };
       trades.push(cur);
       lastSigBar = i;
-      swBullBar = null; swBullLvl = null; swBullExt = null; swBearBar = null; swBearLvl = null; swBearExt = null;
+      if (!cfg.perEngine) { swBullBar = null; swBullLvl = null; swBullExt = null; swBearBar = null; swBearLvl = null; swBearExt = null; }
     }
 
     var li = n - 1, last = n ? sessOf(T[li], tfSec, info, cfg) : { ok: false, name: '-' };
     return {
       trades: trades, closed: n,
-      arr: { atr: atr, atrAvg: atrAvg, h4: h4, h1: h1, ct: ct, rawDir: rawDir, rawLvl: rawLvl, rawEng: rawEng },
+      arr: { atr: atr, atrAvg: atrAvg, h4: h4, h1: h1, ct: ct, rawDir: rawDir, rawLvl: rawLvl, rawEng: rawEng, engSig: engSig, engLvl: engLvl },
       now: n ? {
         h4: h4[li], h1: h1[li], trend: ct[li], sessOk: last.ok, sessName: last.name,
         atr: atr[li], atrAvg: atrAvg[li],
@@ -344,32 +346,35 @@ window.RTX = window.RTX || {};
   function esc(s) { return String(s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
   function $(id) { return document.getElementById(id); }
 
+  /* সেটিংসের "উন্নত" ঘর। কোন ঘর কোন স্ট্র্যাটেজিতে কাজ করে সেটা fieldApplies() ঠিক করে, বাকিগুলো দেখানোই হয় না */
   var FIELDS = [
-    ['power', 'bool', '🔥 POWER কনসেনসাস (সব স্ট্র্যাটেজির ভোট)'], ['gUltra', 'bool', 'ভোটার: ULTRA (৫ ইঞ্জিন)'], ['gXl', 'bool', 'ভোটার: XL (OC/Breakout/Donchian/MA/Supertrend/Aroon)'],
-    ['xOC', 'bool', 'XL এর ভেতরে: OC'], ['xBrk', 'bool', 'XL এর ভেতরে: Breakout'], ['xDon', 'bool', 'XL এর ভেতরে: Donchian'], ['xMA', 'bool', 'XL এর ভেতরে: MA Cross'], ['xST', 'bool', 'XL এর ভেতরে: Supertrend'], ['xAr', 'bool', 'XL এর ভেতরে: Aroon'],
-    ['gUt', 'bool', 'ভোটার: UT Bot (Luxy)'], ['gJdt', 'bool', 'ভোটার: JDT Supertrend'],
-    ['pwVotes', 'num', 'সর্বনিম্ন কয়টি গ্রুপ একমত হতে হবে (১-৪)', 1, 4], ['pwWin', 'num', 'ভোটের জানালা (বার)', 1, 10], ['pwMinScore', 'num', 'POWER ন্যূনতম স্কোর', 30, 100], ['pwHtf', 'bool', 'POWER: HTF উল্টো হলে বাদ'],
-    ['htfMode', 'select', 'HTF ফিল্টার (4H + 1H)', ['Strict', 'Normal', 'Off']],
-    ['minScore', 'num', 'ন্যূনতম স্কোর', 30, 100], ['cooldown', 'num', 'সিগন্যালের পর বিরতি (বার)', 0, 200],
+    ['htfMode', 'select', 'HTF ফিল্টার (4H + 1H) — Off করলে বড় টাইমফ্রেম দেখা হয় না', ['Strict', 'Normal', 'Off']],
     ['oneTrade', 'bool', 'একসাথে একটাই লাইভ ট্রেড'], ['beOn', 'bool', 'TP1 এর পর SL ব্রেক-ইভেনে'],
-    ['enSweep', 'bool', 'ইঞ্জিন: Sweep Reclaim'], ['enCrt', 'bool', 'ইঞ্জিন: CRT + TBS'], ['enWyck', 'bool', 'ইঞ্জিন: Wyckoff + ICT'],
-    ['enQm', 'bool', 'ইঞ্জিন: QM + SMC'], ['enFib', 'bool', 'ইঞ্জিন: Price Action + Fib'],
-    ['swingLen', 'num', 'সুইং দৈর্ঘ্য', 1, 10], ['sweepWin', 'num', 'Sweep: কনফার্মেশনের সর্বোচ্চ বার', 2, 20],
+    ['swingLen', 'num', 'সুইং দৈর্ঘ্য (Sweep, QM, Fib)', 1, 10], ['sweepWin', 'num', 'Sweep: কনফার্মেশনের সর্বোচ্চ বার', 2, 20],
     ['wyMaxAtr', 'num', 'Wyckoff: রেঞ্জের সর্বোচ্চ প্রস্থ (×ATR)', 2, 50], ['qmMaxAge', 'num', 'QM: শেষ সুইং থেকে সর্বোচ্চ বার', 10, 500],
     ['fibMinAtr', 'num', 'Fib: ন্যূনতম ইমপালস (×ATR)', 1, 50], ['fibMaxAge', 'num', 'Fib: ইমপালসের পর সর্বোচ্চ বার', 10, 500],
     ['slBuf', 'num', 'SL বাফার (×ATR)', 0, 5], ['slMinAtr', 'num', 'ন্যূনতম SL দূরত্ব (×ATR)', 0.1, 10], ['slMaxAtr', 'num', 'সর্বোচ্চ SL দূরত্ব (×ATR)', 0.5, 20],
     ['tp1R', 'num', 'TP1 (R)', 0.1, 20], ['tp2R', 'num', 'TP2 (R)', 0.1, 20], ['tp3R', 'num', 'TP3 (R)', 0.1, 50],
     ['balance', 'num', 'অ্যাকাউন্ট ব্যালেন্স ($)', 1, 100000000], ['riskPct', 'num', 'ঝুঁকি প্রতি ট্রেডে (%)', 0.1, 10],
     ['useSess', 'bool', 'সেশন ফিল্টার (ফরেক্স/সোনায়)'], ['volFilter', 'bool', 'ভোলাটিলিটি ফিল্টার'],
-    ['volLow', 'num', 'ATR < গড় × এর কম হলে বাদ', 0.1, 5], ['volHigh', 'num', 'ATR > গড় × এর বেশি হলে বাদ', 1, 20],
     ['showHist', 'bool', 'পুরোনো ট্রেডও চার্টে দেখাও'], ['maxHist', 'num', 'সর্বোচ্চ কয়টি পুরোনো ট্রেড আঁকবে', 1, 40]
   ];
+  var RAID_KEYS = ['htfMode', 'oneTrade', 'beOn', 'slMinAtr', 'slMaxAtr', 'showHist', 'maxHist'];
+  var SPEC_KEYS = { swingLen: ['sweep', 'qm', 'fib'], sweepWin: ['sweep'], wyMaxAtr: ['wyck'], qmMaxAge: ['qm'], fibMinAtr: ['fib'], fibMaxAge: ['fib'] };
+  function fieldApplies(key) {
+    if (cfg.strategy === 'raid') return RAID_KEYS.indexOf(key) >= 0;
+    if (SPEC_KEYS[key]) return SPEC_KEYS[key].indexOf(cfg.strategy) >= 0;
+    return true;
+  }
 
   var cfg = Object.assign({}, DEF, lsGet('rtx_ultra_cfg', {}));
   if (!lsGet('rtx_ultra_cfg', {}).entryMode) { cfg.engine = 'raid'; cfg.entryMode = 'retest'; cfg.maxRiskPct = 10; cfg.lotMode = 'fixed'; lsSet('rtx_ultra_cfg', cfg); try { localStorage.removeItem('rtx_ultra_opt'); } catch (_) {} }
+  if (!R.strat || !R.strat.DEFS[cfg.strategy]) cfg.strategy = 'raid';
+  cfg.engine = cfg.strategy === 'raid' ? 'raid' : 'strat'; cfg.power = true;   // পুরোনো 'decision'/'classic' আর ড্রপডাউনে নেই
+  lsSet('rtx_ultra_cfg', cfg);
   var optStore = lsGet('rtx_ultra_opt', {}), lastAlertKey = '';
   function optKey() { return cur.sym + '|' + cur.sec; }
-  function effCfg() { var o = cfg.autoOpt && optStore[optKey()]; if (o && o.engine && o.engine !== cfg.engine) o = null; return o ? Object.assign({}, cfg, o) : cfg; }
+  function effCfg() { var o = cfg.autoOpt && optStore[optKey()]; if (o && ((o.engine && o.engine !== cfg.engine) || (o.strategy || 'raid') !== cfg.strategy)) o = null; return o ? Object.assign({}, cfg, o) : cfg; }
   R.ultra.getState = function () { return { res: state.res, info: state.info, cfg: state.cfg, sym: cur.sym, sec: cur.sec }; };
   var cur = { sym: null, sec: 60 }, state = { res: null, warn: '' }, htfStore = {}, tm = 0, lastN = 0, seenKey = '', seen = {};
 
@@ -398,7 +403,7 @@ window.RTX = window.RTX || {};
     if (!h.h4 && !h.h1) { if (mode !== 'Off' && cur.sec < 14400) warn = 'HTF (4H/1H) ডেটা পাওয়া যায়নি, তাই এখন HTF ফিল্টার ছাড়াই চলছে।'; if (cur.sec < 14400) mode = 'Off'; }
     state.warn = warn;
     var res;
-    try { res = engine(all.slice(0, all.length - 1), h, ec, info, cur.sec, mode); }
+    try { res = engine(all.slice(0, all.length - 1), h, Object.assign({}, ec, { enSweep: true, enCrt: true, enWyck: true, enQm: true, enFib: true, perEngine: !!(R.strat && R.strat.isStrat(ec.strategy)) }), info, cur.sec, mode); }
     catch (e) { say('ULTRA ত্রুটি: ' + e.message); return; }
     if (cfg.power && R.power) {
       try { res = R.power.run(all.slice(0, all.length - 1), res, ec, info, cur.sec, mode); }
@@ -500,10 +505,11 @@ window.RTX = window.RTX || {};
   }
 
   /* ---------- "কেন এই সিগন্যাল" ব্যাখ্যা (সিগন্যালের সাথে জমা তথ্য থেকে) ---------- */
-  function EM() { return (cfg.engine === 'raid' && R.raid) ? R.raid : R.decision; }
+  function EM() { return (cfg.engine === 'raid' && R.raid) ? R.raid : (cfg.engine === 'strat' && R.strat) ? R.strat : R.decision; }
   function whyHtml(t, info, mny) {
     var w = t.why, b = t.dir === 1, f = function (p) { return Number(p).toFixed(info.dec); };
     if (!w) return '<div class="note-info">পুরোনো (Classic) ইঞ্জিনের সিগন্যাল: ' + esc(t.mode) + (t.extra ? ' · ' + esc(t.extra) : '') + '। বিস্তারিত কারণ শুধু নতুন ইঞ্জিনে পাওয়া যায় (সেটিংস → উন্নত → ইঞ্জিন)।</div>';
+    if (w.strat) return whyStrat(t, w, info, mny);
     if (w.raid) return whyRaid(t, w, info, mny);
     var P = w.parts, M = w.partsMax, ls = [];
     ls.push('<b>বাজারের অবস্থা:</b> ' + esc(w.regimeBn) + '। ' + esc(w.regimeDesc));
@@ -539,6 +545,26 @@ window.RTX = window.RTX || {};
     return '<div class="why"><div class="why-h">কেন এই সিগন্যাল এলো?</div><ol>' + ls.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol><details class="fold"><summary>৮টি শর্তের পরীক্ষা (সবগুলো ✅ হলেই সিগন্যাল)</summary><div class="fbody">' + g + '</div></details></div>';
   }
 
+  function whyStrat(t, w, info, mny) {
+    var s = w.strat, b = t.dir === 1, P = w.parts, M = w.partsMax, ls = [], f = function (p) { return Number(p).toFixed(info.dec); };
+    ls.push('<b>১) স্ট্র্যাটেজি:</b> ' + esc(s.name) + ' (' + esc(s.group) + ')। ' + esc(s.desc));
+    ls.push('<b>২) ট্রিগার:</b> এই বন্ধ ক্যান্ডেলে ওই শর্ত পূর্ণ হয়েছে, তাই ' + (b ? 'BUY' : 'SELL') + (s.lvl !== null ? '। স্ট্রাকচার লেভেল ' + f(s.lvl) : '') + '। ক্যান্ডেলের বডি ' + s.body + '×ATR' + (s.volRatio !== null ? ', ভলিউম গড়ের ' + s.volRatio + ' গুণ' : '') + '।');
+    ls.push('<b>৩) এন্ট্রি:</b> ' + esc(s.entryNote) + '।' + (t.status === 0 ? ' এখনো লিমিট অপেক্ষায়; দাম না ফিরলে ট্রেড হবে না।' : ''));
+    ls.push('<b>৪) বড় টাইমফ্রেম:</b> 4H ' + bn(w.htf.h4) + ', 1H ' + bn(w.htf.h1) + (w.htf.counterTrend ? ' — একটি বিপরীতে, ঝুঁকি বেশি' : ''));
+    ls.push('<b>৫) SL কেন ওখানে:</b> ' + esc(s.slKindBn || w.sl.text) + (w.sl.widened ? ' (খুব কাছে হওয়ায় ন্যূনতম দূরত্বে সরানো হয়েছে)' : '') + '। দাম ওটা পার হলে এই সেটআপের ধারণাই ভুল প্রমাণিত হয়।');
+    ls.push('<b>৬) টার্গেট:</b> TP১ ' + w.tp.r[0].toFixed(1) + 'R, TP২ ' + w.tp.r[1].toFixed(1) + 'R, TP৩ ' + w.tp.r[2].toFixed(1) + 'R' + (s.obstacle ? '। সবচেয়ে কাছের বাধা ' + esc(s.obstacle) + (s.room !== null && s.room !== undefined ? ' (' + Number(s.room).toFixed(1) + 'R দূরে)' : '') : '। সামনে বড় কোনো বাধা নেই') + (w.tp.notes && w.tp.notes.length ? '। ' + esc(w.tp.notes.join('; ')) : ''));
+    ls.push('<b>স্কোর ' + w.score + '/১০০</b> (ন্যূনতম ' + w.minScore + '): ট্রিগার ' + P.trigger + '/' + M.trigger + ' · বড় টাইমফ্রেম ' + P.htf + '/' + M.htf + ' · ট্রেন্ড (EMA50/200) ' + P.trend + '/' + M.trend + ' · EMA100 ' + P.ema + '/' + M.ema + ' · VWAP ' + P.vwap + '/' + M.vwap + ' · Heikin Ashi ' + P.ha + '/' + M.ha + ' · ক্যান্ডেল ' + P.candle + '/' + M.candle + ' · ভলিউম ' + P.vol + '/' + M.vol + '। স্কোর শুধু কয়টা শর্ত মিলেছে তা বলে, জেতার সম্ভাবনা নয়।');
+    ls.push('<b>ঝুঁকি:</b> ' + mny.lot.toFixed(2) + ' লটে SL ছুঁলে ক্ষতি ' + money(mny.risk) + (mny.pct !== null ? ' = ব্যালেন্স ' + money(mny.bal) + '-এর ' + mny.pct.toFixed(2) + '%' : '') + (w.risk.warn ? ' ⚠️ ৫%-এর বেশি' : '') + (w.costs.on ? '। স্প্রেড ' + w.costs.spread + ' ও স্লিপেজ ' + w.costs.slip + ' হিসাবে ধরা আছে' : ''));
+    var g = w.gate.map(function (x) { return '<div class="gate ' + (x.ok ? 'ok' : 'no') + '">' + (x.ok ? '✅' : '❌') + ' ' + esc(x.label) + (x.note ? '<span>' + esc(x.note) + '</span>' : '') + '</div>'; }).join('');
+    return '<div class="why"><div class="why-h">কেন এই সিগন্যাল এলো? (' + esc(s.name) + ')</div><ol>' + ls.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol><details class="fold"><summary>৮টি শর্তের পরীক্ষা (সবগুলো ✅ হলেই সিগন্যাল)</summary><div class="fbody">' + g + '</div></details></div>';
+  }
+
+  function stratCardHtml() {
+    if (!R.strat) return '';
+    var df = R.strat.DEFS[cfg.strategy] || R.strat.DEFS.raid;
+    return '<div class="card"><label class="field full"><span>🎯 স্ট্র্যাটেজি — শুধু এটাই সিগন্যাল দেবে (সব মার্কেটে)</span><select data-k="strategy">' + R.strat.ORDER.map(function (k, ix) { return '<option value="' + k + '"' + (cfg.strategy === k ? ' selected' : '') + '>' + (ix + 1) + '. ' + esc(R.strat.DEFS[k].name) + '</option>'; }).join('') + '</select></label><div class="note-info"><b>' + esc(df.group) + ':</b> ' + esc(df.desc) + '</div></div>';
+  }
+
   /* ---------- ট্যাব ১: সিগন্যাল ---------- */
   function sigHtml() {
     if (!cfg.on) return '<div class="card muted">ULTRA বন্ধ আছে। সেটিংস ট্যাবে গিয়ে চালু করো।</div>';
@@ -552,6 +578,7 @@ window.RTX = window.RTX || {};
 
     var D = EM(), mk = C.mode || 'smart';
     var al = now.alert;
+    h += stratCardHtml();
     h += '<div class="card" style="padding:8px 12px"><button class="btn" style="width:100%" onclick="RTX.school&&RTX.school.open(\'words\')">📚 শব্দের মানে ও সিগন্যাল পড়া শিখো (🏫 স্কুল)</button></div>';
     if (al) h += '<div class="card alert-' + al.stage + '"><b>' + (al.stage === 'watch' ? '👀 প্রস্তুত থাকো' : al.stage === 'swept' ? '⚠️ সুইপ হয়েছে, CISD-র অপেক্ষা' : '⏳ লিমিট এন্ট্রির অপেক্ষা') + (al.dir ? ' · ' + (al.dir === 1 ? 'BUY' : 'SELL') + ' সম্ভাবনা' : '') + '</b><div class="note-info">' + esc(al.text) + '</div></div>';
     h += '<div class="card"><div class="mrow">' + ['safe', 'smart', 'aggressive'].map(function (m) { return '<button class="mbtn' + (mk === m ? ' on' : '') + '" data-mode="' + m + '">' + m.toUpperCase() + '</button>'; }).join('') + (R.help ? R.help.btn('mode') : '') + '</div>' +
@@ -610,7 +637,8 @@ window.RTX = window.RTX || {};
       res.board.forEach(function (r) { h += kv(esc(r.name), r.n ? r.n + ' ট্রেড · জয় ' + r.win.toFixed(0) + '% · ' + (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R' : '—', r.n && r.exp > 0 ? 'up' : r.n ? 'dn' : ''); });
       h += '<div class="note-info">জয় ৩৩%-এর বেশি ও +R হলে ২R টার্গেটে লাভজনক ছিল।</div></div>';
     }
-    h += '<div class="card"><b>🎯 অটো-সেটআপ</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মার্কেট ও টাইমফ্রেমে ' + (R.opt ? R.opt.COMBOS : '') + 'টি সেটিং পরীক্ষা করে সেরাটা শেষ ৩৫% অদেখা ডেটায় যাচাই করে। কয়েক সেকেন্ড লাগে।</div><div class="btnrow"><button class="btn primary" id="ul-opt">খোঁজো</button><button class="btn" id="ul-optoff">অটো-সেটআপ মুছো</button></div><div id="ul-optres">' + optHtml + '</div></div>';
+    h += '<div class="card"><b>🔬 ১২টি স্ট্র্যাটেজির তুলনা (এই মার্কেট ও টাইমফ্রেমে)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">বর্তমান মোড ও এন্ট্রি ধরনে প্রতিটাকে আলাদা করে চালিয়ে দেখায় কোনটা এই চার্টের ডেটায় কেমন চলেছে। শেষ ৩৫% ক্যান্ডেল আলাদা দেখানো হয় (সেটাই বেশি নির্ভরযোগ্য)।</div><div class="btnrow"><button class="btn primary" id="ul-cmp">তুলনা করো</button></div><div id="ul-cmpres">' + cmpHtml + '</div></div>';
+    h += '<div class="card"><b>🎯 অটো-সেটআপ</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মার্কেট ও টাইমফ্রেমে ' + (R.opt ? R.opt.combosFor(cfg.engine) : '') + 'টি সেটিং পরীক্ষা করে সেরাটা শেষ ৩৫% অদেখা ডেটায় যাচাই করে। কয়েক সেকেন্ড লাগে।</div><div class="btnrow"><button class="btn primary" id="ul-opt">খোঁজো</button><button class="btn" id="ul-optoff">অটো-সেটআপ মুছো</button></div><div id="ul-optres">' + optHtml + '</div></div>';
     h += '<div class="note-info">সব হিসাব শুধু এই চার্টে এখন যে ক্যান্ডেল লোড আছে তার। পুরোনো ফল ভবিষ্যতের গ্যারান্টি নয়। আসল টাকায় আগে ডেমোতে যাচাই করো।</div>';
     return h;
   }
@@ -621,15 +649,13 @@ window.RTX = window.RTX || {};
     ['lotMode', 'select', 'লট কীভাবে ঠিক হবে', [['fixed', 'স্থির লট (আমি সবসময় একই লটে ট্রেড করি)'], ['risk', 'ঝুঁকি % থেকে হিসাব']]],
     ['lot', 'num', 'স্থির লট (যেমন 0.01)', 0.01, 100],
     ['riskPct', 'num', 'ঝুঁকি % (শুধু "ঝুঁকি %" মোডে)', 0.1, 10],
-    ['entryMode', 'select', 'এন্ট্রির ধরন', [['retest', 'রিটেস্ট এন্ট্রি — দাম ফিরলে লিমিট (SL ছোট, কিছু ট্রেড মিস হয়)'], ['fast', 'দ্রুত এন্ট্রি — CISD বন্ধ হতেই (প্রায় সব ট্রেড ধরা পড়ে)']]],
+    ['entryMode', 'select', 'এন্ট্রির ধরন', [['retest', 'রিটেস্ট এন্ট্রি — দাম একটু ফিরলে লিমিট (SL-এর দূরত্ব ছোট, কিছু ট্রেড মিস হয়)'], ['fast', 'দ্রুত এন্ট্রি — সিগন্যাল ক্যান্ডেল বন্ধ হতেই (প্রায় সব ট্রেড ধরা পড়ে)']]],
     ['maxRiskPct', 'num', 'এক ট্রেডে সর্বোচ্চ ঝুঁকি (ব্যালেন্সের %)', 0.5, 50],
     ['mode', 'select', 'সিগন্যাল মোড', [['safe', 'SAFE — কম কিন্তু সেরা'], ['smart', 'SMART — ভারসাম্য'], ['aggressive', 'AGGRESSIVE — বেশি সিগন্যাল']]],
     ['costOn', 'bool', 'স্প্রেড ও স্লিপেজ খরচ হিসাবে ধরো'], ['useSess', 'bool', 'সেশন ফিল্টার (সোনায়)'], ['volFilter', 'bool', 'ভোলাটিলিটি ফিল্টার']
   ];
   var ALLF = [];
   function rebuildAllF() { ALLF = SFIELDS.concat(FIELDS.filter(function (x) { return ['balance', 'riskPct', 'useSess', 'volFilter'].indexOf(x[0]) < 0; })); }
-  rebuildAllF();
-  FIELDS.push(['engine', 'select', 'ইঞ্জিন', [['raid', 'লিকুইডিটি রেইড (সুইপ + CISD) — প্রস্তাবিত'], ['decision', 'আগের নতুন (স্কোর ভিত্তিক)'], ['classic', 'পুরোনো (শুধু ভোট গণনা)']]]);
   rebuildAllF();
 
   function fieldHtml(fd, grid) {
@@ -640,7 +666,7 @@ window.RTX = window.RTX || {};
   }
   function previewHtml() {
     var info = marketInfo(cur.sym || 'XAUUSDT'), C = effCfg(), spec = R.trade.specFor(info, C), lot = C.lot > 0 ? C.lot : 0.01, mk = C.mode || 'smart';
-    var M = C.engine === 'raid' ? { maxRiskPct: C.maxRiskPct > 0 ? C.maxRiskPct : 10 } : (R.decision ? Object.assign({}, R.decision.MODES[mk], C.ov || {}) : { maxRiskPct: 3 });
+    var M = { maxRiskPct: C.maxRiskPct > 0 ? C.maxRiskPct : 10 };
     var per = R.trade.dollarRisk(info, spec, lot, 1, 1000), bal = C.balance > 0 ? C.balance : 1000, maxUsd = bal * M.maxRiskPct / 100;
     var h = '<div class="note-info"><b>' + esc(info.sym) + '</b>: ' + lot.toFixed(2) + ' লটে দাম ১ একক নড়লে লাভ/লস = <b>' + money(per) + '</b> (কন্ট্রাক্ট ' + spec.cSize + ')।<br>';
     h += 'ব্যালেন্স ' + money(bal) + ', ' + mk.toUpperCase() + ' মোডে এক ট্রেডে সর্বোচ্চ ঝুঁকি ' + M.maxRiskPct + '% = <b>' + money(maxUsd) + '</b>। ';
@@ -655,6 +681,7 @@ window.RTX = window.RTX || {};
   function setHtml() {
     var info = marketInfo(cur.sym || 'XAUUSDT'), spec = R.trade.specFor(info, cfg), h = '';
     h += '<div class="card"><div class="row"><label><input type="checkbox" id="ul-on"' + (cfg.on ? ' checked' : '') + '><span>চার্টে সিগন্যাল চালু</span></label></div></div>';
+    h += stratCardHtml();
     h += '<div class="card"><b>💰 অ্যাকাউন্ট ও লট</b><div class="fgrid">' + SFIELDS.filter(function (x) { return ['balance', 'lot', 'riskPct', 'maxRiskPct'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '</div>' + SFIELDS.filter(function (x) { return ['lotMode', 'entryMode', 'mode'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '<div id="set-prev">' + previewHtml() + '</div></div>';
     h += '<div class="card"><b>📐 ' + esc(info.sym) + ' — ব্রোকারের মান</b><div class="muted" style="font-size:12px;margin:4px 0 8px">Exness-এর স্পেসিফিকেশন দেখে মিলিয়ে নাও। ভুল হলে ডলারের হিসাবও ভুল আসবে।</div><div class="fgrid">' +
       [['cSize', 'কন্ট্রাক্ট সাইজ (১ লট = কত একক)'], ['spread', 'স্প্রেড (দামের এককে)'], ['slip', 'স্লিপেজ (দামের এককে)']].map(function (x) { return '<label class="field"><span>' + x[1] + '</span><input type="number" inputmode="decimal" step="any" data-sk="' + x[0] + '" value="' + spec[x[0]] + '"></label>'; }).join('') + '</div>' +
@@ -667,9 +694,11 @@ window.RTX = window.RTX || {};
     var grid = '', rows = '';
     FIELDS.forEach(function (fd) {
       if (['balance', 'riskPct', 'useSess', 'volFilter'].indexOf(fd[0]) >= 0) return;
+      if (!fieldApplies(fd[0])) return;
       if (fd[1] === 'bool') rows += fieldHtml(fd); else grid += fieldHtml(fd);
     });
-    return '<div class="fgrid">' + grid + '</div>' + rows;
+    var note = cfg.strategy === 'raid' ? 'Raid ইঞ্জিনে SL সুইপের চূড়ায় আর TP উল্টো দিকের লিকুইডিটিতে বসে, তাই বাফার/TP-র R-এর ঘর এখানে নেই। কড়াকড়ি ঠিক হয় সিগন্যাল মোড (SAFE/SMART/AGGRESSIVE) থেকে।' : 'এখানে শুধু এই স্ট্র্যাটেজিতে কাজ করে এমন ঘরগুলোই দেখানো হচ্ছে। স্কোর, বিরতি ও ফিল্টারের কড়াকড়ি ঠিক হয় সিগন্যাল মোড থেকে।';
+    return '<div class="note-info">' + note + '</div><div class="fgrid">' + grid + '</div>' + rows;
   }
 
   /* ---------- ট্যাব ৪: শেখো ---------- */
@@ -714,6 +743,47 @@ window.RTX = window.RTX || {};
     optBusy = false;
   }
 
+  /* ---------- ১২ স্ট্র্যাটেজির তুলনা ---------- */
+  var cmpHtml = '', cmpBusy = false;
+  async function runCompare() {
+    if (cmpBusy || !R.strat) return;
+    cmpBusy = true; var sym = cur.sym, sec = cur.sec;
+    function put(html) { cmpHtml = html; var o = $('ul-cmpres'); if (o && TAB === 'perf') o.innerHTML = html; }
+    try {
+      var all = R.chart.candles();
+      if (all.length < 200) { put('<div class="note-warn">তুলনার জন্য কমপক্ষে ২০০ ক্যান্ডেল লাগে (এখন ' + all.length + ')।</div>'); cmpBusy = false; return; }
+      var cs = all.slice(0, all.length - 1), ec = effCfg(), info = marketInfo(sym), h = htfStore[sym] || { h4: null, h1: null, d: null }, mode = cfg.htfMode;
+      if (!h.h4 && !h.h1 && sec < 14400) mode = 'Off';
+      var base = engine(cs, h, Object.assign({}, ec, { enSweep: true, enCrt: true, enWyck: true, enQm: true, enFib: true, perEngine: true }), info, sec, mode);
+      var split = Math.floor(cs.length * 0.65), rows = [], q;
+      for (q = 0; q < R.strat.ORDER.length; q++) {
+        var k = R.strat.ORDER[q];
+        put('<div class="note-info">চলছে… ' + (q + 1) + '/' + R.strat.ORDER.length + ' (' + esc(R.strat.DEFS[k].name) + ')</div>');
+        await new Promise(function (r) { setTimeout(r, 0); });
+        var c2 = Object.assign({}, ec, { strategy: k, engine: k === 'raid' ? 'raid' : 'strat', power: true, noBoard: true, ov: {} });
+        var res = R.power.run(cs, base, c2, info, sec, mode), m = R.analytics.metrics(res.trades), te = R.opt.stats(res.trades, split, cs.length);
+        rows.push({ k: k, name: R.strat.DEFS[k].name, n: m.n, win: m.winRate, exp: m.expR, tn: te.n, texp: te.exp });
+      }
+      rows.sort(function (a, b) { return (b.n > 0 ? 1 : 0) - (a.n > 0 ? 1 : 0) || b.exp - a.exp; });
+      var html = '<div class="note-info">' + cs.length + ' ক্যান্ডেল · মোড ' + esc((ec.mode || 'smart').toUpperCase()) + ' · ' + (ec.entryMode === 'fast' ? 'দ্রুত' : 'রিটেস্ট') + ' এন্ট্রি</div>';
+      rows.forEach(function (r) {
+        var good = r.n >= 10 && r.exp > 0 && r.tn >= 3 && r.texp > 0;
+        html += '<div class="kv"><span>' + (cfg.strategy === r.k ? '✅ ' : '') + esc(r.name) + '</span><b class="' + (good ? 'up' : r.n && r.exp < 0 ? 'dn' : '') + '">' + (r.n ? r.n + ' ট্রেড · জয় ' + r.win.toFixed(0) + '% · ' + (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R · শেষ ৩৫%: ' + r.tn + ' ট্রেড ' + (r.tn ? (r.texp >= 0 ? '+' : '') + r.texp.toFixed(2) + 'R' : '') : 'কোনো সিগন্যাল নেই') + '</b></div>' + (cfg.strategy === r.k ? '' : '<div class="btnrow" style="margin:0 0 6px"><button class="btn" data-pick="' + r.k + '">এটা বাছো</button></div>');
+      });
+      html += '<div class="note-info">সবুজ = মোট ১০+ ট্রেড, শেষ ৩৫%-ও লাভে। কম ট্রেডের ফল (বিশেষ করে ৩০-এর নিচে) ভাগ্যও হতে পারে। শুধু এই চার্টে এখন লোড থাকা ক্যান্ডেলের হিসাব, ভবিষ্যতের গ্যারান্টি নয়। সারাক্ষণ একটাই বাছাই না করে আগে আলাদা আলাদা মার্কেট-টাইমফ্রেমে দেখো।</div>';
+      if (cur.sym === sym && cur.sec === sec) put(html);
+    } catch (e) { put('<div class="note-warn">ত্রুটি: ' + esc(e.message) + '</div>'); }
+    cmpBusy = false;
+  }
+
+  function setStrategy(k) {
+    if (!R.strat || !R.strat.DEFS[k]) return;
+    cfg.strategy = k; cfg.engine = k === 'raid' ? 'raid' : 'strat'; cfg.power = true; lsSet('rtx_ultra_cfg', cfg);
+    aiHtml = ''; aiFor = ''; lastAlertKey = '';
+    say('স্ট্র্যাটেজি: ' + R.strat.DEFS[k].name + ' (এখন শুধু এটাই সিগন্যাল দেবে)');
+    sched(0, true);
+  }
+
   function setMode(m) {
     cfg.mode = m; lsSet('rtx_ultra_cfg', cfg);
     if (optStore[optKey()]) { delete optStore[optKey()]; lsSet('rtx_ultra_opt', optStore); say('মোড বদলানোয় এই মার্কেটের অটো-সেটআপ বাদ দেওয়া হয়েছে'); }
@@ -739,6 +809,8 @@ window.RTX = window.RTX || {};
       if (d.tab) { setTab(d.tab); return; }
       if (d.mode) { setMode(d.mode); return; }
       if (id === 'ul-opt') { runOpt(); return; }
+      if (id === 'ul-cmp') { runCompare(); return; }
+      if (d.pick) { setStrategy(d.pick); renderSheet(); return; }
       if (id === 'ul-optoff') { delete optStore[optKey()]; lsSet('rtx_ultra_opt', optStore); optHtml = '<div class="note-info">এই মার্কেটের অটো-সেটআপ মুছে গেছে।</div>'; sched(0, true); renderSheet(); return; }
       if (d.apply !== undefined) { var r = lastOpt && lastOpt.top[+d.apply]; if (r) { optStore[optKey()] = r.cfg; lsSet('rtx_ultra_opt', optStore); say('অটো-সেটআপ বসানো হয়েছে'); sched(0, true); } return; }
       if (id === 'nw-add') {
@@ -758,6 +830,7 @@ window.RTX = window.RTX || {};
         lsSet('rtx_ultra_cfg', cfg); var pv = $('set-prev'); if (pv) pv.innerHTML = previewHtml(); sched(0, true); return;
       }
       var key = d.k; if (!key) return;
+      if (key === 'strategy') { setStrategy(t.value); renderSheet(); return; }
       var fd = ALLF.filter(function (x) { return x[0] === key; })[0]; if (!fd) return;
       if (key === 'mode') { setMode(t.value); var pv2 = $('set-prev'); if (pv2) pv2.innerHTML = previewHtml(); return; }
       if (fd[1] === 'bool') cfg[key] = t.checked;
