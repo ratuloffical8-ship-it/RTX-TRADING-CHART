@@ -472,7 +472,7 @@ window.RTX = window.RTX || {};
   document.head.appendChild(css);
 
   var btn = $('btn-ultra');
-  var TABS = [['sig', '📡 সিগন্যাল'], ['perf', '📊 ফলাফল'], ['set', '⚙️ সেটিংস'], ['learn', '🎓 শেখো']];
+  var TABS = [['sig', '📡 সিগন্যাল'], ['perf', '📊 ফলাফল'], ['set', '⚙️ সেটিংস']];
   var TAB = lsGet('rtx_ultra_tab', 'sig'); if (!TABS.some(function (x) { return x[0] === TAB; })) TAB = 'sig';
   var aiHtml = '', aiFor = '', optHtml = '';
 
@@ -552,6 +552,7 @@ window.RTX = window.RTX || {};
 
     var D = EM(), mk = C.mode || 'smart';
     var al = now.alert;
+    h += '<div class="card" style="padding:8px 12px"><button class="btn" style="width:100%" onclick="RTX.school&&RTX.school.open(\'words\')">📚 শব্দের মানে ও সিগন্যাল পড়া শিখো (🏫 স্কুল)</button></div>';
     if (al) h += '<div class="card alert-' + al.stage + '"><b>' + (al.stage === 'watch' ? '👀 প্রস্তুত থাকো' : al.stage === 'swept' ? '⚠️ সুইপ হয়েছে, CISD-র অপেক্ষা' : '⏳ লিমিট এন্ট্রির অপেক্ষা') + (al.dir ? ' · ' + (al.dir === 1 ? 'BUY' : 'SELL') + ' সম্ভাবনা' : '') + '</b><div class="note-info">' + esc(al.text) + '</div></div>';
     h += '<div class="card"><div class="mrow">' + ['safe', 'smart', 'aggressive'].map(function (m) { return '<button class="mbtn' + (mk === m ? ' on' : '') + '" data-mode="' + m + '">' + m.toUpperCase() + '</button>'; }).join('') + (R.help ? R.help.btn('mode') : '') + '</div>' +
       (D ? '<div class="note-info">' + esc(D.MODE_INFO[mk].desc) + '</div>' : '') + '</div>';
@@ -722,7 +723,7 @@ window.RTX = window.RTX || {};
   function renderSheet() {
     var tb = $('ul-tabs'), b = $('ul-body'); if (!tb || !b) return;
     tb.innerHTML = TABS.map(function (x) { return '<button class="utab' + (TAB === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '">' + x[1] + '</button>'; }).join('');
-    b.innerHTML = TAB === 'sig' ? sigHtml() : TAB === 'perf' ? perfHtml() : TAB === 'set' ? setHtml() : learnHtml();
+    b.innerHTML = TAB === 'sig' ? sigHtml() : TAB === 'perf' ? perfHtml() : setHtml();
     b.scrollTop = 0;
   }
   function openSheet() {
