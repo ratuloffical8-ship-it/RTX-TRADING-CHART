@@ -21,7 +21,8 @@ window.RTX = window.RTX || {};
   var SYS = 'তুমি RTX স্কুলের একজন ধৈর্যশীল শিক্ষক। শিক্ষার্থী ট্রেডিংয়ে একদম নতুন, তাকে ৮ বছরের শিশুকে শেখানোর মতো করে বোঝাও। সহজ বাংলায়, ছোট ছোট বাক্যে লেখো। কঠিন শব্দ এলে সাথে সাথে মানে বলো। দৈনন্দিন জীবনের উপমা (দোকান, ক্রিকেট, বাজার, রিকশা) দাও। শুধু দেওয়া পাঠের বিষয়ে কথা বলো। নিজে বানানো উদাহরণ হলে স্পষ্ট লেখো "কল্পিত উদাহরণ"। আসল দাম, খবর বা ভবিষ্যৎ দামের ভবিষ্যদ্বাণী বানাবে না। লাভের নিশ্চয়তা দেবে না। এটা আর্থিক পরামর্শ নয়। সর্বোচ্চ ৩০০ শব্দ।';
 
   var S = lsGet('rtx_school', { done: {}, days: {}, pre: {}, cur: null });
-  if (!S.done) S.done = {}; if (!S.days) S.days = {}; if (!S.pre) S.pre = {};
+  if (!S.done) S.done = {}; if (!S.days) S.days = {}; if (!S.pre) S.pre = {}; if (!S.sp) S.sp = {}; if (!S.sph) S.sph = []; if (!S.qh) S.qh = []; if (!S.aq) S.aq = []; if (!S.tab) S.tab = 'today';
+  var lessonsDone = lsGet('rtx_lessons', {}), PQ = null;
   var notes = lsGet('rtx_school_notes', {});
   var qCount = lsGet('rtx_school_q', {});
   var cur = 0, el = null, busy = false;
@@ -79,17 +80,103 @@ window.RTX = window.RTX || {};
     }).join('');
   }
 
+  var TABS = [['today', '📅 আজ'], ['course', '📖 কোর্স'], ['words', '🔤 শব্দকোষ'], ['lessons', '📚 পাঠমালা'], ['practice', '🧪 প্র্যাকটিস']];
+
+  /* ---------- 🔤 শব্দকোষ (আগের "শেখো" ট্যাব) ---------- */
+  function wordsHtml() {
+    var T = R.help ? R.help.TERMS : {};
+    return '<div class="card"><b>সিগন্যাল কীভাবে পড়বে (৫ ধাপ)</b><ol class="why-ol"><li>প্রথমে <b>বাজারের অবস্থা</b> দেখো। অস্থির হলে ট্রেড নয়।</li><li><b>গ্রেড ও স্কোর</b> দেখো। নতুন হলে A বা A+ ছাড়া ট্রেড নিও না।</li><li><b>"কেন এই সিগন্যাল"</b> পড়ো। কারণ না বুঝলে ট্রেড নিও না।</li><li><b>SL ও লট</b> দেখো। SL-এ কত ডলার যাবে, সেটা সহ্য করতে পারলে তবেই।</li><li>প্রথমে <b>ডেমো/পেপার</b>। আগে অন্তত ২ সপ্তাহ।</li></ol></div>' +
+      '<div class="card"><b>শব্দের মানে (চাপ দিলে খুলবে)</b><div class="lgrid">' + Object.keys(T).map(function (k) { return '<button type="button" class="ihelp lrow" data-h="' + k + '">' + esc(T[k][0]) + '</button>'; }).join('') + '</div></div>';
+  }
+
+  /* ---------- 📚 পাঠমালা (আগের "শেখা" ট্যাবের পাঠ) ---------- */
+  function lessonsHtml() {
+    var L = R.LESSONS || [], n = 0;
+    var items = L.map(function (l) {
+      var ok = !!lessonsDone[l.id]; if (ok) n++;
+      return '<details class="lesson' + (ok ? ' done' : '') + '"><summary><span>' + l.icon + '</span>' + esc(l.title) + '<span class="tick">✓</span></summary><div class="body"><ul>' + l.points.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul><div class="practice"><b>অনুশীলন:</b> ' + esc(l.practice) + '</div><button class="btn" data-lsn="' + l.id + '">' + (ok ? '✓ সম্পন্ন (আবার ট্যাপ করলে বাতিল)' : 'সম্পন্ন করেছি') + '</button></div></details>';
+    }).join('');
+    return '<div class="card"><b>' + n + ' / ' + L.length + ' পাঠ সম্পন্ন</b><div class="bar"><i style="width:' + (L.length ? n / L.length * 100 : 0) + '%"></i></div><div class="muted" style="font-size:12px">এগুলো ১১২ দিনের কোর্সের পাশাপাশি আলাদা সংক্ষিপ্ত পাঠ।</div></div>' + items;
+  }
+
+  /* ---------- 🎯 আজকের বিশেষ টাস্ক (AI, প্রতিদিন নতুন, আগেরটা পুনরাবৃত্তি হয় না) ---------- */
+  function taskCardHtml() {
+    var t = S.sp[dkey()], ended = doneCount() >= DAYS.length;
+    if (t) return '<div class="card"><b>🎯 আজকের বিশেষ টাস্ক' + (ended ? ' (রিভিশন সিরিজ)' : '') + '</b><div class="sc-out">' + (R.ai ? R.ai.md(t.text) : esc(t.text)) + '</div><label class="sc-chk" style="margin-top:8px"><input type="checkbox" data-stdone="1"' + (t.done ? ' checked' : '') + '>আমি করেছি</label></div>';
+    return '<div class="card"><b>🎯 আজকের বিশেষ টাস্ক</b><div class="muted" style="font-size:12px;margin:4px 0">পাঠের বাইরে, তোমার জার্নাল ও আজকের পাঠ দেখে AI একটি নতুন টাস্ক দেবে। প্রতিদিন আলাদা। ' + (ended ? 'কোর্স শেষ, তাই এখন রিভিশন সিরিজ চলছে।' : '') + '</div><button class="btn primary" data-stask="1">আজকের নতুন টাস্ক নাও</button><div id="sc-tout"></div></div>';
+  }
+  function offlineTask() {
+    var D = DAYS[cur], pool = ['চার্টে ' + D.title + ' সম্পর্কিত একটি উদাহরণ খুঁজে স্ক্রিনশট নাও ও নিজের ভাষায় ৩ লাইন লেখো।', 'আজকের চার্টে একটি সিগন্যাল বা সেটআপ বেছে নাও। SL কোথায় বসবে ও কেন, লিখে রাখো (ট্রেড নিতে হবে না)।', 'গতকালের গোল্ড ৫ মিনিট চার্টে সবচেয়ে বড় লিকুইডিটি সুইপটি খুঁজে চিহ্নিত করো।', 'পেপার ট্রেডে একটি ট্রেড নাও না, শুধু এন্ট্রি-SL-TP-র ছক আঁকো ও ঝুঁকি ডলারে হিসাব করো।', 'আজ কোন কোন সময়ে বাজার সবচেয়ে বেশি নড়ল, লিখে রাখো (লন্ডন/নিউইয়র্ক খোলার সময় মিলিয়ে)।'];
+    var pick = pool.filter(function (x) { return S.sph.indexOf(x.slice(0, 40)) < 0; });
+    return '**টাস্ক (অফলাইন):** ' + (pick.length ? pick[Math.floor(Math.random() * pick.length)] : pool[Math.floor(Math.random() * pool.length)]);
+  }
+  async function aiTask() {
+    var out = document.getElementById('sc-tout'); if (busy) return; busy = true;
+    var D = DAYS[cur], ended = doneCount() >= DAYS.length, topic = ended ? R.COURSE.weeks[Math.floor(Math.random() * R.COURSE.weeks.length)].t : (D.wt + ' — ' + D.title);
+    var prompt = 'বিষয়: ' + topic + '\nমূল কথা: ' + (ended ? 'পুরো কোর্স শেষ, এখন রিভিশন' : D.learn) + '\n\nশিক্ষার্থীর সর্বশেষ জার্নাল:\n' + journalBrief() + '\n\nআগে যে টাস্কগুলো দেওয়া হয়েছে (এগুলো আবার দেবে না):\n' + (S.sph.slice(-10).join('\n') || 'নেই') + '\n\nআজকের জন্য একটিই নতুন, ছোট (১৫-৩০ মিনিটের) টাস্ক দাও। কাঠামো: **টাস্কের নাম** (এক লাইন), তারপর ৩-৪টি ধাপ, শেষে "কেন এটা জরুরি" এক লাইন। শুধু ডেমো/চার্টে করার মতো, আসল টাকায় ট্রেড করতে বলবে না। নতুন সংখ্যা: ' + Date.now() % 997;
+    if (out) out.innerHTML = '<div class="note-info">AI টাস্ক বানাচ্ছে…</div>';
+    var txt;
+    try { var j = await R.ai.ask(SYS, prompt, null); txt = j.text; }
+    catch (e) { txt = offlineTask() + '\n\n(AI এখন পায়নি: ' + e.message + '। তাই এই সাধারণ টাস্ক দেওয়া হলো)'; }
+    S.sp[dkey()] = { text: txt, done: false }; S.sph.push(String(txt).replace(/[*#\n]/g, ' ').trim().slice(0, 40)); if (S.sph.length > 60) S.sph.shift(); save();
+    busy = false; paintTab();
+  }
+
+  /* ---------- 🧪 প্র্যাকটিস (অসীম, পুনরাবৃত্তি ছাড়া) ---------- */
+  function shuffle(a) { for (var i = a.length - 1; i > 0; i--) { var j = Math.floor(Math.random() * (i + 1)), t = a[i]; a[i] = a[j]; a[j] = t; } return a; }
+  function firstSent(x) { var m = String(x).split(/[।\.]\s/)[0]; return m.length > 110 ? m.slice(0, 107) + '…' : m; }
+  function quickQ() {
+    var T = R.help ? R.help.TERMS : {}, keys = Object.keys(T); if (keys.length < 5) return null;
+    var fresh = keys.filter(function (k) { return S.qh.indexOf(k) < 0; }); if (!fresh.length) { S.qh = []; fresh = keys; }
+    var k = fresh[Math.floor(Math.random() * fresh.length)], wrong = shuffle(keys.filter(function (x) { return x !== k; })).slice(0, 3);
+    var opts = shuffle([k].concat(wrong)).map(function (x) { return { k: x, t: firstSent(T[x][1]) }; });
+    S.qh.push(k); if (S.qh.length > 80) S.qh.shift(); save();
+    return { q: '"' + T[k][0].replace(/\?$/, '') + '" মানে কী?', o: opts.map(function (x) { return x.t; }), a: opts.findIndex(function (x) { return x.k === k; }), w: T[k][1] };
+  }
+  function practiceHtml() {
+    var h = '<div class="card"><b>🧪 প্র্যাকটিস</b><div class="muted" style="font-size:12px;margin:4px 0">দুই রকম। <b>দ্রুত কুইজ</b> AI ছাড়া, যত খুশি, একই প্রশ্ন সব শেষ না হওয়া পর্যন্ত আসে না। <b>AI কুইজ</b> তোমার এখনকার পাঠ অনুযায়ী ৩টি নতুন প্রশ্ন বানায় (দিনে ৪ বার)।</div><div class="sc-ai"><button class="btn primary" data-pnew="1">⚡ দ্রুত কুইজ</button><button class="btn" data-pai="1">🤖 AI কুইজ (৩টি)</button></div></div>';
+    if (PQ) h += PQ.map(function (q, qi) {
+      var ans = q.picked !== undefined;
+      return '<div class="card"><b>' + (qi + 1) + ') ' + esc(q.q) + '</b>' + q.o.map(function (o, oi) { var cls = !ans ? '' : (oi === q.a ? ' up' : (oi === q.picked ? ' dn' : '')); return '<button class="btn pq-o' + cls + '" style="display:block;width:100%;text-align:left;margin-top:6px;' + (ans && oi === q.a ? 'border-color:#4caf50;' : ans && oi === q.picked ? 'border-color:#ff5252;' : '') + '" data-pq="' + qi + '|' + oi + '"' + (ans ? ' disabled' : '') + '>' + esc(o) + '</button>'; }).join('') + (ans ? '<div class="note-info" style="margin-top:8px">' + (q.picked === q.a ? '✅ ঠিক!' : '❌ ঠিক উত্তর: ' + esc(q.o[q.a])) + '<br>' + esc(q.w || '') + '</div>' : '') + '</div>';
+    }).join('');
+    return h + '<div id="pq-msg"></div>';
+  }
+  async function aiPractice() {
+    var msg = document.getElementById('pq-msg'), today = dkey(), cnt = lsGet('rtx_school_pq', {}); if (busy) return;
+    if ((cnt[today] || 0) >= 4) { if (msg) msg.innerHTML = '<div class="note-warn">আজ ৪ বার AI কুইজ নেওয়া হয়ে গেছে (লিমিট বাঁচাতে)। "দ্রুত কুইজ" যত খুশি করতে পারো, বা কাল আবার এসো।</div>'; return; }
+    if (!R.ai) { if (msg) msg.innerHTML = '<div class="note-warn">AI মডিউল লোড হয়নি।</div>'; return; }
+    busy = true; if (msg) msg.innerHTML = '<div class="note-info">AI প্রশ্ন বানাচ্ছে…</div>';
+    var fo = firstOpen(), seen = DAYS.slice(Math.max(0, fo - 14), fo + 1).map(function (d) { return d.title; }).join('; ');
+    var prompt = 'শিক্ষার্থী এখন ' + DAYS[fo].wt + ' (দিন ' + (fo + 1) + '/১১২)-এ আছে। সাম্প্রতিক পাঠ: ' + seen + '\n\nএই বিষয়গুলো থেকে ঠিক ৩টি বহুনির্বাচনী প্রশ্ন (সহজ → একটু কঠিন), প্রতিটিতে ৪টি অপশন, একটিই সঠিক।\nএই প্রশ্নগুলো আগে করা হয়েছে, আবার করবে না:\n' + (S.aq.slice(-20).join('\n') || 'নেই') + '\n\nউত্তর শুধু JSON অ্যারে, আর কিছু লিখবে না, ফরম্যাট: [{"q":"প্রশ্ন","o":["ক","খ","গ","ঘ"],"a":0,"w":"কেন এটা ঠিক, ১-২ লাইনে"}]। a = সঠিক অপশনের নম্বর (০ থেকে ৩)। সব বাংলায়। সিরিয়াল: ' + Date.now() % 9973;
+    try {
+      var j = await R.ai.ask(SYS, prompt, null), t = String(j.text).replace(/```json|```/g, ''), a = t.indexOf('['), b = t.lastIndexOf(']'), arr = JSON.parse(t.slice(a, b + 1));
+      arr = arr.filter(function (x) { return x && x.q && Array.isArray(x.o) && x.o.length >= 2 && x.a >= 0 && x.a < x.o.length; }).slice(0, 3);
+      if (!arr.length) throw new Error('AI-র উত্তর পড়া যায়নি, আবার চেষ্টা করো');
+      PQ = arr; arr.forEach(function (x) { S.aq.push(String(x.q).slice(0, 50)); }); if (S.aq.length > 60) S.aq.shift(); save();
+      cnt[today] = (cnt[today] || 0) + 1; lsSet('rtx_school_pq', cnt); busy = false; paintTab();
+    } catch (e) { busy = false; if (msg) msg.innerHTML = '<div class="note-warn">' + esc(e.message) + '</div>'; }
+  }
+
+  function tabBar() { return '<div class="mrow" style="margin:10px 0;flex-wrap:wrap;gap:6px">' + TABS.map(function (x) { return '<button class="mbtn' + (S.tab === x[0] ? ' on' : '') + '" data-tab="' + x[0] + '" style="flex:1 1 30%">' + x[1] + '</button>'; }).join('') + '</div>'; }
+  function tabHtml() {
+    if (S.tab === 'course') return preHtml() + '<h3 style="margin:14px 0 6px">সব সপ্তাহ</h3><div id="sc-weeks">' + weeksHtml() + '</div><div class="btnrow"><button class="btn" id="sc-reset">কোর্স নতুন করে শুরু (প্রগতি মুছবে)</button></div>';
+    if (S.tab === 'words') return wordsHtml();
+    if (S.tab === 'lessons') return lessonsHtml();
+    if (S.tab === 'practice') return practiceHtml();
+    return taskCardHtml() + '<div id="sc-today">' + todayHtml() + '</div>';
+  }
+  function paintTab() { var b = document.getElementById('sc-body'); if (b) b.innerHTML = tabHtml(); var t = document.getElementById('sc-tabs'); if (t) t.innerHTML = tabBar(); }
+  function setTab(k) { S.tab = k; save(); paintTab(); var b = document.getElementById('sc-tabs'); if (b && b.scrollIntoView) b.scrollIntoView({ block: 'start' }); }
   function render() {
     var n = doneCount();
     el.innerHTML = '<h2 class="pg">🏫 RTX স্কুল</h2>' +
-      '<div class="card warn">এখানে একদম শুরু থেকে ১৬ সপ্তাহে (৪ মাসে) ট্রেডিং শেখানো হবে। প্রতিদিন একটি নতুন পাঠ। তাড়াহুড়ো নেই, একদিন বাদ গেলেও পরের দিন সেখান থেকেই শুরু। এটা শেখার জন্য, আর্থিক পরামর্শ নয়, আর কোনো কোর্সই লাভের নিশ্চয়তা দেয় না।</div>' +
+      '<div class="card warn">এখানে একদম শুরু থেকে ১৬ সপ্তাহে (৪ মাসে) ট্রেডিং শেখানো হবে। প্রতিদিন একটি নতুন পাঠ, সঙ্গে AI-র নতুন টাস্ক ও কুইজ। তাড়াহুড়ো নেই, একদিন বাদ গেলেও পরের দিন সেখান থেকেই শুরু। এটা শেখার জন্য, আর্থিক পরামর্শ নয়, আর কোনো কোর্সই লাভের নিশ্চয়তা দেয় না।</div>' +
       '<div class="stats"><div class="stat"><b>' + n + '/' + DAYS.length + '</b><span class="muted">দিন সম্পূর্ণ</span></div><div class="stat"><b>' + streak() + '</b><span class="muted">টানা দিন</span></div></div>' +
       '<div class="card" style="margin-top:10px"><div class="bar" style="margin:0"><i style="width:' + (n / DAYS.length * 100) + '%"></i></div></div>' +
-      preHtml() + '<div id="sc-today">' + todayHtml() + '</div><h3 style="margin:14px 0 6px">সব সপ্তাহ</h3><div id="sc-weeks">' + weeksHtml() + '</div>' +
-      '<div class="btnrow"><button class="btn" id="sc-reset">কোর্স নতুন করে শুরু (প্রগতি মুছবে)</button></div>';
+      '<div id="sc-tabs">' + tabBar() + '</div><div id="sc-body">' + tabHtml() + '</div>';
   }
-  function refreshToday() { var t = document.getElementById('sc-today'); if (t) t.innerHTML = todayHtml(); var w = document.getElementById('sc-weeks'); if (w) w.innerHTML = weeksHtml(); }
-  function refreshStats() { var st = el.querySelector('.stats'); if (st) st.innerHTML = '<div class="stat"><b>' + doneCount() + '/' + DAYS.length + '</b><span class="muted">দিন সম্পূর্ণ</span></div><div class="stat"><b>' + streak() + '</b><span class="muted">টানা দিন</span></div>'; var b = el.querySelector('.bar i'); if (b) b.style.width = (doneCount() / DAYS.length * 100) + '%'; }
+  function refreshToday() { paintTab(); }
+  function refreshStats() { if (!el) return; var st = el.querySelector('.stats'); if (st) st.innerHTML = '<div class="stat"><b>' + doneCount() + '/' + DAYS.length + '</b><span class="muted">দিন সম্পূর্ণ</span></div><div class="stat"><b>' + streak() + '</b><span class="muted">টানা দিন</span></div>'; var b = el.querySelector('.bar i'); if (b) b.style.width = (doneCount() / DAYS.length * 100) + '%'; }
 
   /* ---------- AI শিক্ষক ---------- */
   function journalBrief() {
@@ -127,6 +214,7 @@ window.RTX = window.RTX || {};
     render();
     el.addEventListener('change', function (e) {
       var t = e.target;
+      if (t.dataset && t.dataset.stdone) { var sp = S.sp[dkey()]; if (sp) { sp.done = t.checked; save(); } return; }
       if (t.dataset && t.dataset.pre !== undefined) { S.pre[t.dataset.pre] = t.checked; save(); var f = el.querySelector('details.fold summary'); if (f) f.firstChild.textContent = '✅ ট্রেডিং শুরুর আগে ১২টি জিনিস (' + R.COURSE.pre.filter(function (_, i) { return S.pre[i]; }).length + '/১২) '; return; }
       if (t.dataset && t.dataset.st) {
         var was = isDone(cur); S.done[cur] = S.done[cur] || {}; S.done[cur][t.dataset.st] = t.checked;
@@ -139,12 +227,19 @@ window.RTX = window.RTX || {};
     el.addEventListener('click', function (e) {
       var t = e.target, d = t.dataset || {};
       if (d.ai) { ai(d.ai); return; }
-      if (d.day !== undefined) { cur = +d.day; S.cur = cur; save(); refreshToday(); document.getElementById('sc-today').scrollIntoView({ block: 'start' }); return; }
+      if (d.tab) { setTab(d.tab); return; }
+      if (d.stask) { aiTask(); return; }
+      if (d.pnew) { var q1 = quickQ(); PQ = q1 ? [q1] : null; paintTab(); return; }
+      if (d.pai) { aiPractice(); return; }
+      if (d.pq) { var pr = d.pq.split('|'), qq = PQ && PQ[+pr[0]]; if (qq && qq.picked === undefined) { qq.picked = +pr[1]; paintTab(); } return; }
+      if (d.lsn) { lessonsDone[d.lsn] = !lessonsDone[d.lsn]; lsSet('rtx_lessons', lessonsDone); paintTab(); return; }
+      if (d.day !== undefined) { cur = +d.day; S.cur = cur; S.tab = 'today'; save(); paintTab(); document.getElementById('sc-tabs').scrollIntoView({ block: 'start' }); return; }
       if (t.id === 'sc-prev' && cur > 0) { cur--; S.cur = cur; save(); refreshToday(); return; }
-      if (t.id === 'sc-next' && cur < DAYS.length - 1) { cur++; S.cur = cur; save(); refreshToday(); document.getElementById('sc-today').scrollIntoView({ block: 'start' }); return; }
-      if (t.id === 'sc-reset') { if (window.confirm('পুরো কোর্সের প্রগতি মুছে নতুন করে শুরু করবে?')) { S = { done: {}, days: {}, pre: {}, cur: null }; save(); notes = {}; lsSet('rtx_school_notes', notes); cur = 0; render(); } }
+      if (t.id === 'sc-next' && cur < DAYS.length - 1) { cur++; S.cur = cur; save(); refreshToday(); document.getElementById('sc-tabs').scrollIntoView({ block: 'start' }); return; }
+      if (t.id === 'sc-reset') { if (window.confirm('পুরো কোর্সের প্রগতি মুছে নতুন করে শুরু করবে?')) { S = { done: {}, days: {}, pre: {}, cur: null, sp: S.sp, sph: S.sph, qh: S.qh, aq: S.aq, tab: 'course' }; save(); notes = {}; lsSet('rtx_school_notes', notes); cur = 0; render(); } }
     });
   }
 
-  R.school = { build: build, DAYS: DAYS };
+  function open(tab) { if (!el) return; S.tab = tab || S.tab; save(); var b = document.querySelector('#bottomnav button[data-view="tasks"]'); if (b) b.click(); paintTab(); }
+  R.school = { build: build, DAYS: DAYS, open: open };
 })(window.RTX);
