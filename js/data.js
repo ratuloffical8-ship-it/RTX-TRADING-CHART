@@ -54,7 +54,7 @@ window.RTX = window.RTX || {};
           if (!r.ok) throw new Error('HTTP ' + r.status);
           var a = await r.json();
           return a.map(function (k) {
-            return { time: Math.floor(k[0] / 1000), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] };
+            return { time: Math.floor(k[0] / 1000), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5], buyVol: k[9] !== undefined ? +k[9] : undefined };
           });
         } catch (e) { lastErr = e; }
       }
@@ -72,7 +72,7 @@ window.RTX = window.RTX || {};
         ws.onmessage = function (e) {
           try {
             var k = JSON.parse(e.data).k; if (!k) return;
-            onCandle({ time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v });
+            onCandle({ time: Math.floor(k.t / 1000), open: +k.o, high: +k.h, low: +k.l, close: +k.c, volume: +k.v, buyVol: k.V !== undefined ? +k.V : undefined });
           } catch (_) {}
         };
         ws.onclose = function () { onStatus(false); if (!closed) { idx++; schedule(); } };
