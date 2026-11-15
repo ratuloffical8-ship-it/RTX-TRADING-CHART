@@ -86,6 +86,7 @@ window.RTX = window.RTX || {};
     var costOn = cfg.costOn !== false, halfCost = costOn ? (spec.spread / 2 + spec.slip) : 0;
     var tp1R = cfg.tp1R > 0 ? +cfg.tp1R : 1, tp2R = cfg.tp2R > 0 ? +cfg.tp2R : 2, tp3R = cfg.tp3R > 0 ? +cfg.tp3R : 3;
     var slMode = df.src === 'ultra' && key !== 'fib' ? 'liquidity' : 'auto';
+    var maxHold = Math.max(6, Math.min(200, Math.round((cfg.maxHoldH > 0 ? +cfg.maxHoldH : 6) * 3600 / tfSec)));   // ট্রেড সর্বোচ্চ কত ক্যান্ডেল খোলা থাকবে
     var trades = [], cur = null, stats = { candidates: 0, signals: 0, rejected: {} }, lastEval = null, lastSigBar = -1e9, lastSl = { '1': -1e9, '-1': -1e9 };
     function rej(kk) { stats.rejected[kk] = (stats.rejected[kk] || 0) + 1; }
 
@@ -179,6 +180,7 @@ window.RTX = window.RTX || {};
           var evs = R.trade.step(cur, H[i], L[i], i, cfg.beOn !== false);
           cur.endTime = T[i];
           for (k = 0; k < evs.length; k++) cur.events.push({ time: T[i], type: evs[k] });
+          if (cur.status >= 1 && cur.status <= 3 && (i - cur.fillBar) >= maxHold) { R.trade.expire(cur, C[i], i); cur.events.push({ time: T[i], type: 'TIMEOUT' }); }   // অনেকক্ষণ খোলা — নতুন সিগন্যাল আটকে না থাকতে ক্লোজ দামে বন্ধ
         }
         if (cur.status === 5 && !cur.slMark) { cur.slMark = 1; lastSl[cur.dir] = i; }
       }
