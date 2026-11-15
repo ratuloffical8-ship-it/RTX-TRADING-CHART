@@ -149,6 +149,7 @@ window.RTX = window.RTX || {};
     D.events.forEach(function (e, idx) { e.id = idx; (evByBar[e.sweepBar] = evByBar[e.sweepBar] || []).push(e); });
     var open = [];          // CISD-র অপেক্ষায় থাকা সুইপ
     var lastSl = { '1': -1e9, '-1': -1e9 };
+    var maxHold = Math.max(6, Math.min(200, Math.round((cfg.maxHoldH > 0 ? +cfg.maxHoldH : 6) * 3600 / tfSec)));   // ট্রেড সর্বোচ্চ কত ক্যান্ডেল খোলা থাকবে
     var trades = [], cur = null, stats = { candidates: 0, signals: 0, rejected: {} }, lastEval = null, sigDone = {};
     function rej(key) { stats.rejected[key] = (stats.rejected[key] || 0) + 1; }
 
@@ -280,6 +281,7 @@ window.RTX = window.RTX || {};
           var evs = R.trade.step(cur, H[i], L[i], i, cfg.beOn !== false);
           cur.endTime = T[i];
           for (k = 0; k < evs.length; k++) cur.events.push({ time: T[i], type: evs[k] });
+          if (cur.status >= 1 && cur.status <= 3 && (i - cur.fillBar) >= maxHold) { R.trade.expire(cur, C[i], i); cur.events.push({ time: T[i], type: 'TIMEOUT' }); }   // অনেকক্ষণ খোলা — নতুন সিগন্যাল আটকে না থাকতে ক্লোজ দামে বন্ধ
         }
       }
       if (cur && cur.status === 5 && !cur.slMark) { cur.slMark = 1; lastSl[cur.dir] = i; }
