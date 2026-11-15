@@ -28,34 +28,52 @@ window.RTX = window.RTX || {};
   }
   function Z(n) { return new Array(n).fill(0); }
 
-  /* ---------- XL: ৬টি ইঞ্জিন (সিগন্যাল: +1 / -1 / 0) ---------- */
-  function engOC(O, H, L, C, n) {
-    var s = Z(n), body = O.map(function (o, i) { return Math.abs(C[i] - o); });
+  /* ---------- XL: ৬টি ইঞ্জিন (সিগন্যাল: +1 / -1 / 0) ----------
+     সব ইঞ্জিনে এখন কনফার্মেশন আছে: ক্যান্ডেলের বডি/ক্লোজ-লোকেশন, আর ভলিউম থাকলে (শূন্য নয়) ভলিউম। */
+  function volAvg(V, n) {   // আগের ২০ ক্যান্ডেলের গড় ভলিউম (বর্তমান বাদে)। ডেটায় ভলিউম না থাকলে (সব শূন্য) null
+    var o = new Array(n).fill(null), sum = 0, i;
+    for (i = 0; i < n; i++) { if (i >= 20) { o[i] = sum / 20; sum -= V[i - 20]; } sum += V[i]; }
+    return o;
+  }
+  function closeLoc(H, L, C, i) { var r = H[i] - L[i]; return r > 0 ? (C[i] - L[i]) / r : 0.5; }   // ০ = ক্লোজ একদম নিচে, ১ = একদম ওপরে
+  function volOk(V, va, i, mult) { return !(va[i] > 0) || V[i] >= mult * va[i]; }
+
+  function engOC(O, H, L, C, V, n) {
+    var s = Z(n), va = volAvg(V, n), body = O.map(function (o, i) { return Math.abs(C[i] - o); });
     for (var i = 51; i < n; i++) {
       var sum = 0; for (var j = i - 50; j < i; j++) sum += body[j];
       var avg = sum / 50;
-      if (avg > 0 && body[i] >= 3 * avg) {
-        if (C[i] > O[i] && C[i] > Math.max(O[i - 1], C[i - 1])) s[i] = 1;
-        else if (C[i] < O[i] && C[i] < Math.min(O[i - 1], C[i - 1])) s[i] = -1;
+      if (avg > 0 && body[i] >= 3 * avg && volOk(V, va, i, 1.1)) {
+        var loc = closeLoc(H, L, C, i);
+        if (C[i] > O[i] && C[i] > Math.max(O[i - 1], C[i - 1]) && loc >= 0.7) s[i] = 1;
+        else if (C[i] < O[i] && C[i] < Math.min(O[i - 1], C[i - 1]) && loc <= 0.3) s[i] = -1;
       }
     }
     return s;
   }
-  function engDon(H, L, C, n) {
-    var s = Z(n), up = new Array(n).fill(null), lo = new Array(n).fill(null), i, j;
+  function engDon(H, L, C, O, V, atr, n) {
+    var s = Z(n), va = volAvg(V, n), up = new Array(n).fill(null), lo = new Array(n).fill(null), i, j;
     for (i = 20; i < n; i++) { var h = -Infinity, l = Infinity; for (j = i - 20; j < i; j++) { if (H[j] > h) h = H[j]; if (L[j] < l) l = L[j]; } up[i] = h; lo[i] = l; }
     for (i = 21; i < n; i++) {
-      if (C[i] > up[i] && !(C[i - 1] > up[i - 1])) s[i] = 1;
-      else if (C[i] < lo[i] && !(C[i - 1] < lo[i - 1])) s[i] = -1;
+      var a = atr[i]; if (!nn(a) || a <= 0) continue;
+      var strong = Math.abs(C[i] - O[i]) >= 0.4 * a && volOk(V, va, i, 1.0), loc = closeLoc(H, L, C, i);
+      if (C[i] > up[i] && !(C[i - 1] > up[i - 1]) && strong && loc >= 0.6) s[i] = 1;
+      else if (C[i] < lo[i] && !(C[i - 1] < lo[i - 1]) && strong && loc <= 0.4) s[i] = -1;
     }
     return s;
   }
-  function engMA(C, n) {
-    var s = Z(n), f = R.ultra.emaPine(C, 9), m = R.ultra.emaPine(C, 21), sl = R.ultra.emaPine(C, 55), prev = 0;
+  function engMA(C, atr, n) {
+    var s = Z(n), f = R.ultra.emaPine(C, 9), m = R.ultra.emaPine(C, 21), sl = R.ultra.emaPine(C, 55), lastAligned = -1000, lastDir = 0;
     for (var i = 0; i < n; i++) {
       var st = i < 55 ? 0 : (f[i] > m[i] && m[i] > sl[i]) ? 1 : (f[i] < m[i] && m[i] < sl[i]) ? -1 : 0;
-      if (st !== 0 && st !== prev) s[i] = st;
-      prev = st;
+      if (st !== 0) {
+        var a = atr[i];
+        var sep = nn(a) && a > 0 && Math.abs(f[i] - m[i]) >= 0.1 * a && Math.abs(m[i] - sl[i]) >= 0.1 * a;
+        var slope = i >= 3 && (st === 1 ? sl[i] > sl[i - 3] : sl[i] < sl[i - 3]);   // ধীর EMA ট্রেন্ডের দিকে ঢালু
+        var fresh = !(lastDir === st && i - lastAligned <= 5);                    // কয়েক বার আগেও একই সাজানো ছিল না (ঝিকমিক বাদ)
+        if (sep && slope && fresh) s[i] = st;
+        lastAligned = i; lastDir = st;
+      }
     }
     return s;
   }
@@ -66,25 +84,31 @@ window.RTX = window.RTX || {};
       for (j = i - len; j <= i; j++) { if (H[j] >= hi) { hi = H[j]; hiI = j; } if (L[j] <= lo) { lo = L[j]; loI = j; } }
       up[i] = 100 * (len - (i - hiI)) / len; dn[i] = 100 * (len - (i - loI)) / len;
     }
+    /* শুধু ক্রস নয়: Up ≥ ৭০ ও Down ≤ ৩০ (জোরালো ট্রেন্ড) হলেই, এবং আগের বার এই অবস্থায় ছিল না */
+    function bull(k) { return up[k] >= 70 && dn[k] <= 30; }
+    function bear(k) { return dn[k] >= 70 && up[k] <= 30; }
+    function anyIn(f, i, back) { for (var q = Math.max(0, i - back); q < i; q++) if (f(q)) return true; return false; }
     for (i = len + 1; i < n; i++) {
-      if (up[i] > dn[i] && up[i - 1] <= dn[i - 1]) s[i] = 1;
-      else if (dn[i] > up[i] && dn[i - 1] <= up[i - 1]) s[i] = -1;
+      // আগের ১০ বারে একই অবস্থা ছিল না (ঝিকমিক/বারবার সিগন্যাল বাদ)
+      if (bull(i) && !anyIn(bull, i, 10)) s[i] = 1;
+      else if (bear(i) && !anyIn(bear, i, 10)) s[i] = -1;
     }
     return s;
   }
-  function engBrk(H, L, C, atr, n) {
-    var s = Z(n);
+  function engBrk(H, L, C, O, V, atr, n) {
+    var s = Z(n), va = volAvg(V, n);
     for (var i = 31; i < n; i++) {
       var a = atr[i]; if (!nn(a) || a <= 0) continue;
       var hi = -Infinity, lo = Infinity, best = 0, bh = 0, bl = 0;
-      for (var len = 1; len <= 30; len++) {
+      for (var len = 1; len <= 30; len++) {   // সবচেয়ে লম্বা সরু বক্স (উচ্চতা ≤ ২×ATR, অন্তত ৫ ক্যান্ডেল)
         var k = i - len; if (k < 0) break;
         if (H[k] > hi) hi = H[k]; if (L[k] < lo) lo = L[k];
         if (hi - lo <= 2 * a) { if (len >= 5) { best = len; bh = hi; bl = lo; } } else break;
       }
       if (best >= 5) {
-        if (C[i] > bh && C[i - 1] <= bh) s[i] = 1;
-        else if (C[i] < bl && C[i - 1] >= bl) s[i] = -1;
+        var rng = H[i] - L[i], bodyOk = rng > 0 && Math.abs(C[i] - O[i]) >= 0.5 * rng && Math.abs(C[i] - O[i]) >= 0.3 * a && volOk(V, va, i, 1.1);
+        if (bodyOk && C[i] > bh && C[i - 1] <= bh && C[i] > O[i]) s[i] = 1;
+        else if (bodyOk && C[i] < bl && C[i - 1] >= bl && C[i] < O[i]) s[i] = -1;
       }
     }
     return s;
@@ -179,9 +203,10 @@ window.RTX = window.RTX || {};
     var mt = info.mintick, dec = info.dec;
     function rt(x) { return +(Math.round(x / mt) * mt).toFixed(dec); }
 
-    var oc = engOC(O, H, L, C, n), don = engDon(H, L, C, n), ma = engMA(C, n), ar = engAroon(H, L, n, 14), br = engBrk(H, L, C, atr, n);
+    var oc = engOC(O, H, L, C, V, n), don = engDon(H, L, C, O, V, atr, n), ma = engMA(C, atr, n), ar = engAroon(H, L, n, 14), br = engBrk(H, L, C, O, V, atr, n);
     var st = stStd(H, L, C, n, 10, 3), ut = engUT(H, L, C, V, atr, atrAvg, n, tfSec, info), jd = jdt(H, L, C, n);
-    var XL = [['OC', oc], ['Breakout', br], ['Donchian', don], ['MA Cross', ma], ['Supertrend', st.flip], ['Aroon', ar]];
+    var stF = Z(n); for (i = 1; i < n; i++) if (st.flip[i] !== 0 && nn(atr[i]) && atr[i] > 0 && Math.abs(C[i] - O[i]) >= 0.3 * atr[i] && (st.flip[i] === 1 ? C[i] > O[i] : C[i] < O[i])) stF[i] = st.flip[i];   // ফ্লিপের ক্যান্ডেল জোরালো ও ফ্লিপের দিকেই বন্ধ হতে হবে
+    var XL = [['OC', oc], ['Breakout', br], ['Donchian', don], ['MA Cross', ma], ['Supertrend', stF], ['Aroon', ar]];
     var xl = Z(n), xlN = new Array(n);
     for (i = 0; i < n; i++) {
       var sum = 0, nm = [];
