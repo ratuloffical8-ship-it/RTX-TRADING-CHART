@@ -14,9 +14,9 @@ window.RTX = window.RTX || {};
 
   /* তিনটি মোড: শুরুর মান (পরীক্ষায় প্রমাণিত সেরা নয়) — cfg.ov দিয়ে বদলানো যায় */
   var MODES = {
-    safe: { minScore: 80, minRR: 2.5, htf: 'strict', mss: 'strict', maxSweepAtr: 2.0, pend: 10, volLow: 0.6, volHigh: 2.5 },
-    smart: { minScore: 70, minRR: 2.0, htf: 'normal', mss: true, maxSweepAtr: 2.5, pend: 12, volLow: 0.5, volHigh: 3 },
-    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', mss: false, maxSweepAtr: 3.0, pend: 14, volLow: 0.4, volHigh: 3.5 }
+    safe: { minScore: 80, minRR: 2.5, htf: 'strict', mss: 'strict', minWick: 0.30, maxSweepAtr: 2.0, pend: 10, volLow: 0.6, volHigh: 2.5 },
+    smart: { minScore: 70, minRR: 2.0, htf: 'normal', mss: true, minWick: 0.20, maxSweepAtr: 2.5, pend: 12, volLow: 0.5, volHigh: 3 },
+    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', mss: false, minWick: 0.12, maxSweepAtr: 3.0, pend: 14, volLow: 0.4, volHigh: 3.5 }
   };
   var MODE_INFO = {
     safe: { name: 'SAFE (নিরাপদ)', desc: 'শুধু সেরা সেটআপ। বড় টাইমফ্রেম মিলতে হবে, লাভ-ঝুঁকির অনুপাত কমপক্ষে ১:২.৫। সিগন্যাল কম আসে।' },
@@ -180,8 +180,8 @@ window.RTX = window.RTX || {};
       var hc = htfCheck(d, m);
       gate(1, 'htf', 'বড় টাইমফ্রেম (4H/1H) বিরোধী নয়', hc.ok, hc.note);
       var kindBn = KIND_BN[ev.pool.kind], wickAtr = Math.abs(ev.ext - ev.pool.p) / a;
-      var sweepOk = wickAtr <= M.maxSweepAtr;
-      gate(2, 'sweepq', 'লিকুইডিটি সুইপ পরিষ্কার', sweepOk, kindBn + ' (' + ev.pool.p + ') ' + (d === -1 ? 'ছাড়িয়ে ওপরে ' : 'ছাড়িয়ে নিচে ') + wickAtr.toFixed(2) + '×ATR উইক টেনে ভেতরে ফিরে বন্ধ' + (sweepOk ? '' : ' — অতিরিক্ত বড়, ব্রেকআউটের মতো'));
+      var minWick = M.minWick || 0.08, sweepOk = wickAtr <= M.maxSweepAtr && wickAtr >= minWick;
+      gate(2, 'sweepq', 'লিকুইডিটি সুইপ পরিষ্কার', sweepOk, kindBn + ' (' + ev.pool.p + ') ' + (d === -1 ? 'ছাড়িয়ে ওপরে ' : 'ছাড়িয়ে নিচে ') + wickAtr.toFixed(2) + '×ATR উইক টেনে ভেতরে ফিরে বন্ধ' + (sweepOk ? '' : wickAtr < minWick ? ' — উইক খুব ছোট (ন্যূনতম ' + minWick + '×ATR), আসল সুইপ নয়' : ' — অতিরিক্ত বড়, ব্রেকআউটের মতো'));
       var body = Math.abs(O[m] - C[m]) / a;
       var needMss = !!M.mss && (M.mss === 'strict' ? S.trend[m] !== d : S.trend[m] === -d), mssOk = true, jj;
       if (needMss) { mssOk = false; for (jj = Math.max(0, ev.sweepBar - 1); jj <= m; jj++) { if (S.choch[jj] === d || S.bos[jj] === d) { mssOk = true; break; } } }
