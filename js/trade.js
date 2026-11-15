@@ -96,7 +96,7 @@ window.RTX = window.RTX || {};
   }
 
   /* একটি বন্ধ ক্যান্ডেলে ট্রেডের অবস্থা। একই ক্যান্ডেলে SL ও TP দুটোই ছুঁলে SL আগে ধরা হয়।
-     status: ১=চলমান ২=TP1 ৩=TP2 ৪=TP3 ৫=SL ৬=ব্রেক-ইভেন */
+     status: ১=চলমান ২=TP1 ৩=TP2 ৪=TP3 ৫=SL ৬=ব্রেক-ইভেন ৯=সময়শেষ (expire) */
   function step(t, hi, lo, idx, beOn) {
     var ev = [], tb = t.dir === 1;
     var slHit = tb ? lo <= t.slNow : hi >= t.slNow;
@@ -145,5 +145,12 @@ window.RTX = window.RTX || {};
     return { total: tot, ok: tot <= maxUsd };
   }
 
-  R.trade = { SPECS: SPECS, specFor: specFor, dollarRisk: dollarRisk, lotFromRisk: lotFromRisk, plan: plan, step: step, resultR: resultR, RiskState: RiskState, corrGroup: corrGroup, aggRisk: aggRisk, SLKIND_BN: SLKIND_BN };
+  /* সময়শেষ: ট্রেড অনেকক্ষণ খোলা থাকলে (সেটিংসের "সর্বোচ্চ কত ঘণ্টা") ওই ক্যান্ডেলের ক্লোজ দামে বন্ধ ধরা হয়।
+     ফলাফল R = (ক্লোজ − এন্ট্রি) ÷ SL-দূরত্ব; SL/ব্রেক-ইভেন ছোঁয়া হয়নি বলে এর নিচে নামে না। স্ট্যাটাস ৯ */
+  function expire(t, close, idx) {
+    var d = t.dir, risk = t.riskD > 0 ? t.riskD : 0, r = risk ? (close - t.entry) * d / risk : 0, floor = risk ? (t.slNow - t.entry) * d / risk : -1;
+    t.exitR = Math.max(r, floor); t.exitPrice = close; t.status = 9; t.end = idx;
+    return ['TIMEOUT'];
+  }
+  R.trade = { expire: expire, SPECS: SPECS, specFor: specFor, dollarRisk: dollarRisk, lotFromRisk: lotFromRisk, plan: plan, step: step, resultR: resultR, RiskState: RiskState, corrGroup: corrGroup, aggRisk: aggRisk, SLKIND_BN: SLKIND_BN };
 })(window.RTX);
