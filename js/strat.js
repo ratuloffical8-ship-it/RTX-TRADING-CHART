@@ -18,32 +18,32 @@ window.RTX = window.RTX || {};
     raid: { name: 'Liquidity Raid (সুইপ + CISD)', short: 'Raid', group: 'রিভার্সাল', desc: 'দাম আগের হাই/লো-র স্টপ-জমা এলাকায় উইক টেনে ঢুকে ভেতরে ফিরলে, তারপর উল্টো দিকে জোরালো ক্যান্ডেল বন্ধ হলে সিগন্যাল। TP উল্টো দিকের লিকুইডিটিতে। (আলাদা ইঞ্জিন raid.js)' },
     sweep: { name: 'Sweep Reclaim', short: 'Sweep', src: 'ultra', idx: 0, group: 'রিভার্সাল', desc: 'দাম আগের সুইং হাই/লো (বা আগের দিনের হাই/লো) ছাড়িয়ে উইক টেনে আবার ভেতরে ফিরে বন্ধ হলো। তারপর ৬ ক্যান্ডেলের মধ্যে উল্টো দিকে জোরালো ক্যান্ডেল (আগের ক্যান্ডেলের হাই/লো ভেঙে) বন্ধ হলে সিগন্যাল। SL সুইপের চূড়ার বাইরে।' },
     crt: { name: 'CRT + TBS', short: 'CRT', src: 'ultra', idx: 1, group: 'রিভার্সাল', desc: 'একটা বড় ক্যান্ডেল (রেঞ্জ ১.৮×ATR-এর বেশি) আছে। পরের কোনো ক্যান্ডেল ওই বড় ক্যান্ডেলের হাই/লো ছাড়িয়ে গিয়ে ফাঁদ তৈরি করে, তারপর পরের ক্যান্ডেল উল্টো দিকে বড় ক্যান্ডেলের ভেতরে ফিরে বন্ধ হলে সিগন্যাল।' },
-    wyck: { name: 'Wyckoff + ICT', short: 'Wyckoff', src: 'ultra', idx: 2, group: 'রিভার্সাল', desc: 'দাম কিছুক্ষণ সরু রেঞ্জে (সর্বোচ্চ ১০×ATR) থেকেছে। রেঞ্জের নিচে/ওপরে একবার ফাঁদ (Spring/Upthrust) ফেলে বডি ভেতরে ফিরে এসেছে। তারপর উল্টো দিকে জোরালো ক্যান্ডেল বন্ধ হলে সিগন্যাল।' },
+    wyck: { name: 'Wyckoff + ICT', short: 'Wyckoff', src: 'ultra', idx: 2, group: 'রিভার্সাল', desc: 'দাম কিছুক্ষণ সরু রেঞ্জে (সর্বোচ্চ ৬×ATR) থেকেছে। রেঞ্জের নিচে/ওপরে একবার ফাঁদ (Spring/Upthrust) ফেলে বডি ভেতরে ফিরে এসেছে। তারপর উল্টো দিকে জোরালো ক্যান্ডেল (বডি রেঞ্জের ৫০%+) বন্ধ হলে সিগন্যাল।' },
     qm: { name: 'QM + SMC', short: 'QM', src: 'ultra', idx: 3, group: 'রিভার্সাল', desc: 'Quasimodo প্যাটার্ন: সুইং হাই/লো-র বিশেষ সাজানোর পর "নেকলাইন" ভেঙে ক্যান্ডেল বন্ধ হলে সিগন্যাল (বুলিশ হলে নেকলাইনের ওপরে, বেয়ারিশ হলে নিচে)। SL প্যাটার্নের চূড়ায়।' },
     fib: { name: 'Price Action + Fib', short: 'Fib', src: 'ultra', idx: 4, group: 'ট্রেন্ড-পুলব্যাক', desc: 'একটা জোরালো মুভ (ইমপালস, কমপক্ষে ২.৫×ATR) হলো। দাম সেটার ৫০%–৭৯% ফিবোনাচ্চি জোনে ফিরে এসে ট্রেন্ডের দিকে জোরালো ক্যান্ডেল (বডি ≥ ৪০%) বন্ধ হলে সিগন্যাল।' },
-    oc: { name: 'OC (বড় বডি মোমেন্টাম)', short: 'OC', src: 'xl', idx: 0, group: 'ব্রেকআউট/মোমেন্টাম', desc: 'ক্যান্ডেলের বডি গত ৫০ ক্যান্ডেলের গড় বডির ৩ গুণ বা বেশি, এবং আগের ক্যান্ডেলের বাইরে বন্ধ হলো। অর্থাৎ হঠাৎ জোরালো ধাক্কা। সেই দিকেই সিগন্যাল।' },
-    brk: { name: 'Breakout (বক্স ভাঙা)', short: 'Breakout', src: 'xl', idx: 1, group: 'ব্রেকআউট/মোমেন্টাম', desc: 'দাম অন্তত ৫ ক্যান্ডেল ধরে সরু বক্সে (উচ্চতা ২×ATR-এর মধ্যে) আটকে ছিল। বক্সের ওপরে বা নিচে প্রথম ক্যান্ডেল বন্ধ হলে সিগন্যাল।' },
-    don: { name: 'Donchian (২০ ক্যান্ডেল চ্যানেল)', short: 'Donchian', src: 'xl', idx: 2, group: 'ব্রেকআউট/মোমেন্টাম', desc: 'গত ২০ ক্যান্ডেলের সর্বোচ্চের ওপরে (বা সর্বনিম্নের নিচে) প্রথমবার বন্ধ হলে সিগন্যাল। মানে নতুন ২০-ক্যান্ডেল হাই/লো।' },
-    ma: { name: 'MA Cross (EMA 9/21/55)', short: 'MA', src: 'xl', idx: 3, group: 'ট্রেন্ড-ফলো', desc: 'EMA৯ > EMA২১ > EMA৫৫ সাজালে বুলিশ (উল্টো হলে বেয়ারিশ)। এই সাজানোটা যে ক্যান্ডেলে প্রথম তৈরি হয় সেখানেই সিগন্যাল। ট্রেন্ড শুরুর স্ট্র্যাটেজি, রেঞ্জ বাজারে ভুল সিগন্যাল বেশি দেয়।' },
-    st: { name: 'Supertrend (১০, ৩)', short: 'Supertrend', src: 'xl', idx: 4, group: 'ট্রেন্ড-ফলো', desc: 'Supertrend লাইন দিক বদলালে (দাম লাইন ভেঙে বন্ধ হলে) সিগন্যাল। ট্রেন্ড-ফলো, রেঞ্জ বাজারে বারবার দিক বদলায়।' },
-    ar: { name: 'Aroon (১৪)', short: 'Aroon', src: 'xl', idx: 5, group: 'ট্রেন্ড-ফলো', desc: 'Aroon Up লাইন Aroon Down-এর ওপরে ওঠা (বা উল্টো) ক্রস হলে সিগন্যাল। মানে সর্বশেষ ১৪ ক্যান্ডেলের মধ্যে নতুন হাই আগে এসেছে নাকি নতুন লো, সেটা বদলে গেল।' }
+    oc: { name: 'OC (বড় বডি মোমেন্টাম)', short: 'OC', src: 'xl', idx: 0, group: 'ব্রেকআউট/মোমেন্টাম', desc: 'ক্যান্ডেলের বডি গত ৫০ ক্যান্ডেলের গড় বডির ৩ গুণ বা বেশি, আগের ক্যান্ডেলের বাইরে বন্ধ হলো, আর ক্লোজ ক্যান্ডেলের শেষ ৩০% অংশে (বুলিশে ওপরে, বেয়ারিশে নিচে)। ভলিউম ডেটা থাকলে গড়ের ১.১ গুণ লাগে। অর্থাৎ হঠাৎ জোরালো ধাক্কা।' },
+    brk: { name: 'Breakout (বক্স ভাঙা)', short: 'Breakout', src: 'xl', idx: 1, group: 'ব্রেকআউট/মোমেন্টাম', desc: 'দাম অন্তত ৫ ক্যান্ডেল ধরে সরু বক্সে (উচ্চতা ২×ATR-এর মধ্যে) আটকে ছিল। বক্সের ওপরে বা নিচে প্রথম ক্যান্ডেল জোরালোভাবে (বডি রেঞ্জের ৫০%+) বন্ধ হলে সিগন্যাল। ভলিউম ডেটা থাকলে গড়ের ১.১ গুণ লাগে।' },
+    don: { name: 'Donchian (২০ ক্যান্ডেল চ্যানেল)', short: 'Donchian', src: 'xl', idx: 2, group: 'ব্রেকআউট/মোমেন্টাম', desc: 'গত ২০ ক্যান্ডেলের সর্বোচ্চের ওপরে (বা সর্বনিম্নের নিচে) প্রথমবার বন্ধ হলে সিগন্যাল, তবে বডি ≥ ০.৪×ATR আর ক্লোজ ক্যান্ডেলের শেষ ৪০% অংশে হতে হবে।' },
+    ma: { name: 'MA Cross (EMA 9/21/55)', short: 'MA', src: 'xl', idx: 3, group: 'ট্রেন্ড-ফলো', desc: 'EMA৯ > EMA২১ > EMA৫৫ সাজালে বুলিশ (উল্টো হলে বেয়ারিশ)। এই সাজানোটা প্রথম তৈরি হলে সিগন্যাল, তবে EMA-গুলোর মাঝে ন্যূনতম ০.১×ATR ফাঁক ও EMA৫৫ ট্রেন্ডের দিকে ঢালু থাকতে হবে, আর গত ৫ ক্যান্ডেলে একই সাজানো থাকলে ধরে না (ঝিকমিক বাদ)।' },
+    st: { name: 'Supertrend (১০, ৩)', short: 'Supertrend', src: 'xl', idx: 4, group: 'ট্রেন্ড-ফলো', desc: 'Supertrend লাইন দিক বদলালে (দাম লাইন ভেঙে বন্ধ হলে) সিগন্যাল, তবে ফ্লিপের ক্যান্ডেলের বডি ≥ ০.৩×ATR ও ফ্লিপের দিকে বন্ধ হতে হবে। ট্রেন্ড-ফলো, রেঞ্জ বাজারে বারবার দিক বদলায়।' },
+    ar: { name: 'Aroon (১৪)', short: 'Aroon', src: 'xl', idx: 5, group: 'ট্রেন্ড-ফলো', desc: 'Aroon (১৪): Up ≥ ৭০ এবং Down ≤ ৩০ হলে (মানে গত ১৪ ক্যান্ডেলে সদ্য নতুন হাই এসেছে আর নতুন লো অনেক আগে) বুলিশ, উল্টো হলে বেয়ারিশ। আগের বার এই অবস্থায় না থাকলে তবেই সিগন্যাল। শুধু ক্রস দেখে নয়।' }
   };
 
   /* মোড: ফিল্টারের কড়াকড়ি। (শুরুর মান; আসল ডেটার ফলাফল দেখে ঠিক করার জিনিস) */
   var MODES = {
-    safe: { minScore: 75, htf: 'strict', cooldown: 12, volLow: 0.6, volHigh: 2.5, pend: 10, minRoomR: 1.5 },
-    smart: { minScore: 65, htf: 'normal', cooldown: 8, volLow: 0.5, volHigh: 3, pend: 8, minRoomR: 1.2 },
-    aggressive: { minScore: 55, htf: 'loose', cooldown: 4, volLow: 0.4, volHigh: 3.5, pend: 6, minRoomR: 1.0 }
+    safe: { minScore: 75, minAdx: 22, htf: 'strict', cooldown: 12, volLow: 0.6, volHigh: 2.5, pend: 10, minRoomR: 1.5 },
+    smart: { minScore: 65, minAdx: 18, htf: 'normal', cooldown: 8, volLow: 0.5, volHigh: 3, pend: 8, minRoomR: 1.2 },
+    aggressive: { minScore: 55, minAdx: 0, htf: 'loose', cooldown: 4, volLow: 0.4, volHigh: 3.5, pend: 6, minRoomR: 1.0 }
   };
   var MODE_INFO = {
-    safe: { name: 'SAFE (নিরাপদ)', desc: 'স্কোর ৭৫+। বড় টাইমফ্রেম (4H/1H) অন্তত একটা মিলতে হবে, উল্টো থাকলে বাদ। সিগন্যালের মধ্যে ১২ ক্যান্ডেল বিরতি। TP পর্যন্ত কমপক্ষে ১.৫R জায়গা লাগে। সিগন্যাল কম আসে।' },
-    smart: { name: 'SMART (সুষম, শুরুর জন্য)', desc: 'স্কোর ৬৫+। বড় টাইমফ্রেম উল্টো হলে বাদ (নিরপেক্ষ চলে)। ৮ ক্যান্ডেল বিরতি। TP পর্যন্ত কমপক্ষে ১.২R জায়গা।' },
-    aggressive: { name: 'AGGRESSIVE (বেশি সিগন্যাল)', desc: 'স্কোর ৫৫+। একটা বড় টাইমফ্রেম উল্টো হলেও চলে। ৪ ক্যান্ডেল বিরতি। সিগন্যাল বেশি, কিন্তু SL-ও বেশি হতে পারে।' }
+    safe: { name: 'SAFE (নিরাপদ)', desc: 'স্কোর ৭৫+। বড় টাইমফ্রেম (4H/1H) অন্তত একটা মিলতে হবে, উল্টো থাকলে বাদ। সিগন্যালের মধ্যে ১২ ক্যান্ডেল বিরতি। TP পর্যন্ত কমপক্ষে ১.৫R জায়গা লাগে। ব্রেকআউট/ট্রেন্ড-ফলোতে ADX ≥ ২২ লাগে। সিগন্যাল কম আসে।' },
+    smart: { name: 'SMART (সুষম, শুরুর জন্য)', desc: 'স্কোর ৬৫+। বড় টাইমফ্রেম উল্টো হলে বাদ (নিরপেক্ষ চলে)। ৮ ক্যান্ডেল বিরতি। TP পর্যন্ত কমপক্ষে ১.২R জায়গা। ব্রেকআউট/ট্রেন্ড-ফলোতে ADX ≥ ১৮ লাগে।' },
+    aggressive: { name: 'AGGRESSIVE (বেশি সিগন্যাল)', desc: 'স্কোর ৫৫+। একটা বড় টাইমফ্রেম উল্টো হলেও চলে। ৪ ক্যান্ডেল বিরতি। ব্রেকআউট/ট্রেন্ড-ফলোতে ADX শর্ত নেই। সিগন্যাল বেশি, কিন্তু SL-ও বেশি হতে পারে।' }
   };
   var REJ_BN = {
     htf: 'বড় টাইমফ্রেম (4H/1H) বিপরীতে', score: 'স্কোর সীমার নিচে', session: 'সেশনের বাইরে', vol: 'ভোলাটিলিটি ঠিক নেই', news: 'নিউজ-বিরতির সময়',
     sl: 'SL গ্রহণযোগ্য নয় (খুব কাছে বা খুব দূরে)', room: 'TP-র পথে বাধা, জায়গা কম', live: 'আগের ট্রেড এখনো চলছে', lotrisk: 'ব্যালেন্সের তুলনায় ঝুঁকি বেশি',
-    cool: 'সদ্য সিগন্যাল/SL হয়েছে, বিরতি চলছে', missed: 'লিমিট এন্ট্রি মেলেনি (দাম ফেরেনি)'
+    cool: 'সদ্য সিগন্যাল/SL হয়েছে, বিরতি চলছে', regime: 'বাজারে ট্রেন্ডের জোর কম (ADX নিচু), ব্রেকআউট/ট্রেন্ড-ফলো ভুয়া হতে পারে', missed: 'লিমিট এন্ট্রি মেলেনি (দাম ফেরেনি)'
   };
   var ENTRY_BN = { retest: 'রিটেস্ট এন্ট্রি (সিগন্যাল ক্যান্ডেলের বডিতে দাম ফিরলে লিমিট)', fast: 'দ্রুত এন্ট্রি (সিগন্যাল ক্যান্ডেল বন্ধ হতেই)' };
   var COOL_AFTER_SL = 12;
@@ -57,7 +57,8 @@ window.RTX = window.RTX || {};
     if (base._ss && base._ss.n === P.n) return base._ss;
     var S = R.structure.compute(P.O, P.H, P.L, P.C, P.atr, { len: 3 }), n = P.n, i, j, vs = new Array(n).fill(null), s = 0;
     for (i = 0; i < n; i++) { s += P.V[i]; if (i >= 20) s -= P.V[i - 20]; if (i >= 19) vs[i] = s / 20; }
-    base._ss = { n: n, S: S, vsma: vs };
+    var RGm = R.regime.compute(P.O, P.H, P.L, P.C);
+    base._ss = { n: n, S: S, vsma: vs, adx: RGm.adx };
     return base._ss;
   }
 
@@ -73,7 +74,7 @@ window.RTX = window.RTX || {};
   /* ---------- মূল রানার ---------- */
   function run(cs, base, cfg, info, tfSec, htfMode) {
     var key = isStrat(cfg.strategy) ? cfg.strategy : 'sweep', df = DEFS[key];
-    var P = R.power.prep(cs, base, info, tfSec), SS = prepS(P, info, base), S = SS.S, vsma = SS.vsma;
+    var P = R.power.prep(cs, base, info, tfSec), SS = prepS(P, info, base), S = SS.S, vsma = SS.vsma, adxA = SS.adx;
     var src = signalsOf(key, base, P), sig = src.sig, lvArr = src.lvl;
     var n = P.n, i, k, O = P.O, H = P.H, L = P.L, C = P.C, T = P.T, atr = P.atr, atrAvg = P.atrAvg, h4 = P.h4, h1 = P.h1, V = P.V, e100 = P.e100, vw = P.vw, haC = P.haC, haO = P.haO, ct = P.ct;
     var mk = MODES[cfg.mode] ? cfg.mode : 'smart', M = Object.assign({}, MODES[mk], cfg.ov || {});
@@ -153,6 +154,10 @@ window.RTX = window.RTX || {};
         if (!rkKey) { warn = riskPct !== null && riskPct > 5; rkNote = lot.toFixed(2) + ' লটে ঝুঁকি $' + (riskUsd === null ? '?' : riskUsd.toFixed(2)) + (riskPct !== null ? ' = ব্যালেন্সের ' + riskPct.toFixed(1) + '%' : '') + (warn ? ' (৫%-এর বেশি, সাবধান)' : ''); }
       }
       gate(8, rkKey || 'risk', 'ঝুঁকির সীমা ঠিক আছে', !rkKey, rkNote);
+
+      // ৯) ট্রেন্ডের জোর: ব্রেকআউট/মোমেন্টাম ও ট্রেন্ড-ফলো স্ট্র্যাটেজি রেঞ্জ বাজারে ভুয়া হয়, তাই ADX দেখি (রিভার্সাল স্ট্র্যাটেজিতে এই শর্ত নেই)
+      var needAdx = (df.group === 'ব্রেকআউট/মোমেন্টাম' || df.group === 'ট্রেন্ড-ফলো') && M.minAdx > 0, adxV = adxA && nn(adxA[m]) ? adxA[m] : null;
+      gate(9, 'regime', 'ট্রেন্ডের জোর যথেষ্ট (ADX ≥ ' + (needAdx ? M.minAdx : '—') + ')', !needAdx || (adxV !== null && adxV >= M.minAdx), !needAdx ? 'এই স্ট্র্যাটেজি/মোডে ADX শর্ত নেই' : 'ADX ' + (adxV === null ? '?' : adxV.toFixed(1)));
 
       var failed = null;
       for (var q = 0; q < G.length; q++) if (!G[q].ok) { failed = G[q]; break; }
