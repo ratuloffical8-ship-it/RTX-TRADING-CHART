@@ -84,3 +84,11 @@ details.fold .fbody{padding:0 12px 12px}
 
 /* Batch D: আগাম এলার্ট কার্ড (raid.js) */
 .alert-watch{border-left:3px solid #f5a623}.alert-swept{border-left:3px solid #ff7a7a}.alert-pending{border-left:3px solid #2979ff}
+
+/* ১২ ইঞ্জিনের ফলাফল টেবিল (ultra.js → পারফরম্যান্স ট্যাব) */
+.rtab{width:100%;border-collapse:collapse;font-size:12px;margin:4px 0 8px}
+.rtab th,.rtab td{padding:6px 7px;border-bottom:1px solid #1f1f1f;text-align:right;white-space:nowrap}
+.rtab th{color:#8b8b8b;font-weight:600;position:sticky;top:0;background:#0a0a0a}
+.rtab th:first-child,.rtab td:first-child{text-align:left;position:sticky;left:0;background:#0a0a0a;z-index:1}
+.rtab tr.sel td{background:#0d1a2b}
+.rtab td.up{color:#3b9cff;font-weight:700}.rtab td.dn{color:#ff6b6b;font-weight:700}
