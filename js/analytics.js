@@ -10,14 +10,14 @@ window.RTX = window.RTX || {};
 (function (R) {
   'use strict';
 
-  function closedOf(trades) { return trades.filter(function (t) { return t.status === 4 || t.status === 5 || t.status === 6; }); }
+  function closedOf(trades) { return trades.filter(function (t) { return t.status === 4 || t.status === 5 || t.status === 6 || t.status === 9; }); }
   function rOf(t) {
     var tp3 = t.tpR && t.tpR[2] ? t.tpR[2] : (t.rr3 || 3);
-    return t.status === 4 ? tp3 : t.status === 5 ? -1 : t.status === 6 ? 0 : null;
+    return t.status === 4 ? tp3 : t.status === 5 ? -1 : t.status === 6 ? 0 : t.status === 9 ? (t.exitR || 0) : null;
   }
 
   function metrics(trades) {
-    var cl = closedOf(trades), n = cl.length, open = trades.length - n;
+    var cl = closedOf(trades), n = cl.length, open = trades.filter(function (t) { return t.status >= 0 && t.status <= 3; }).length;   // চলমান = লিমিটের অপেক্ষায় + এন্ট্রি হয়ে চলছে (মিস/বাতিল নয়)
     var m = { n: n, open: open, wins: 0, losses: 0, be: 0, tp1: 0, tp3: 0, winRate: 0, tp1Rate: 0, tp3Rate: 0, slRate: 0, beRate: 0, totalR: 0, expR: 0, avgWinR: 0, avgLossR: -1, pf: 0, maxDDR: 0, maxLossStreak: 0, totalUsd: null, maxDDUsd: null, avgRiskUsd: null, rs: [] };
     if (!n) return m;
     var gw = 0, gl = 0, eq = 0, peak = 0, dd = 0, streak = 0, maxStreak = 0, usd = 0, eqU = 0, peakU = 0, ddU = 0, hasUsd = true, riskSum = 0, riskN = 0;
@@ -85,5 +85,57 @@ window.RTX = window.RTX || {};
     return { level: 'good', text: 'গড়ে প্রতি ট্রেডে +' + m.expR.toFixed(2) + 'R, তিন ভাগেই লাভ, আর মন্টে কার্লোতেও লসের সম্ভাবনা কম। এটা ভালো লক্ষণ, কিন্তু ভবিষ্যতের গ্যারান্টি নয়। আগে ডেমোতে চালাও।' };
   }
 
-  R.analytics = { metrics: metrics, walkForward: walkForward, monteCarlo: monteCarlo, verdict: verdict, rOf: rOf, closedOf: closedOf };
+  /* ইঞ্জিন-ভিত্তিক বিস্তারিত ফলাফল (সব সংখ্যা সরাসরি ট্রেডের স্ট্যাটাস/ইভেন্ট থেকে গোনা, কোনো অনুমান নেই)
+     signals   = মোট সিগন্যাল (যতগুলো ট্রেড তৈরি হয়েছে)
+     entered   = এন্ট্রি ধরেছে (স্ট্যাটাস ১–৬)   missed = লিমিটে দাম ফেরেনি (৮)   replaced = নতুন সিগন্যালে বাতিল (৭)   pending = লিমিটের অপেক্ষায় (০)
+     open      = এন্ট্রি হয়েছে কিন্তু এখনো শেষ হয়নি (১–৩)   closed = শেষ হয়েছে (TP3 / SL / BE)
+     শেষ হওয়া ট্রেডের মধ্যে: tp1/tp2/tp3 = অন্তত ওই টার্গেট ছুঁয়েছে (জমা গণনা), sl = শুরু থেকে SL, be = TP1 ছুঁয়ে SL এন্ট্রিতে ফিরে বেরিয়েছে, expired = সময়শেষে ক্লোজ দামে বন্ধ (স্ট্যাটাস ৯)
+     expAll = পুরো পজিশন TP3-তে/SL-এ (বর্তমান নিয়ম)   expTp1 / expTp2 = যদি পুরো পজিশন TP1 / TP2-তেই বন্ধ করা হতো */
+  function breakdown(trades) {
+    var b = { signals: trades.length, expired: 0, entered: 0, missed: 0, replaced: 0, pending: 0, open: 0, openTp1: 0, closed: 0, tp1: 0, tp2: 0, tp3: 0, sl: 0, slAfterTp1: 0, be: 0, buy: 0, sell: 0, winRate: 0, tp1Rate: 0, tp2Rate: 0, tp3Rate: 0, slRate: 0, beRate: 0, expAll: 0, expTp1: 0, expTp2: 0, totalR: 0 };
+    var sAll = 0, sT1 = 0, sT2 = 0;
+    trades.forEach(function (t) {
+      if (t.dir === 1) b.buy++; else b.sell++;
+      var st = t.status;
+      if (st === 0) { b.pending++; return; }
+      if (st === 7) { b.replaced++; return; }
+      if (st === 8) { b.missed++; return; }
+      b.entered++;
+      if (st >= 1 && st <= 3) { b.open++; if (t.tp1Hit) b.openTp1++; return; }
+      if (st !== 4 && st !== 5 && st !== 6 && st !== 9) return;
+      b.closed++;
+      var ev = t.events || [], has2 = st === 4, q;
+      for (q = 0; q < ev.length; q++) if (ev[q].type === 'TP2') has2 = true;
+      var hit1 = !!t.tp1Hit || st === 4 || st === 6, tr = t.tpR || [];
+      var r1 = tr[0] > 0 ? tr[0] : 1, r2 = tr[1] > 0 ? tr[1] : 2;
+      if (hit1) b.tp1++;
+      if (has2) b.tp2++;
+      if (st === 4) b.tp3++;
+      else if (st === 6) b.be++;
+      else if (st === 9) b.expired++;
+      else { b.sl++; if (t.tp1Hit) b.slAfterTp1++; }
+      sAll += rOf(t);
+      sT1 += hit1 ? r1 : st === 9 ? rOf(t) : -1;
+      sT2 += has2 ? r2 : st === 9 ? rOf(t) : -1;
+    });
+    var n = b.closed;
+    if (n) {
+      b.winRate = b.tp3 / n * 100; b.tp1Rate = b.tp1 / n * 100; b.tp2Rate = b.tp2 / n * 100; b.tp3Rate = b.tp3 / n * 100; b.slRate = b.sl / n * 100; b.beRate = b.be / n * 100;
+      b.totalR = sAll; b.expAll = sAll / n; b.expTp1 = sT1 / n; b.expTp2 = sT2 / n;
+    }
+    return b;
+  }
+  /* একাধিক মার্কেট/টাইমফ্রেমের breakdown যোগ করা (শুধু গণনার সংখ্যা যোগ হয়, হার আবার হিসাব হয়) */
+  function addBreakdown(list) {
+    var keys = ['signals', 'expired', 'entered', 'missed', 'replaced', 'pending', 'open', 'openTp1', 'closed', 'tp1', 'tp2', 'tp3', 'sl', 'slAfterTp1', 'be', 'buy', 'sell'];
+    var o = {}, sums = { totalR: 0, t1: 0, t2: 0 };
+    keys.forEach(function (k) { o[k] = 0; });
+    list.forEach(function (x) { keys.forEach(function (k) { o[k] += x[k] || 0; }); sums.totalR += x.totalR || 0; sums.t1 += (x.expTp1 || 0) * (x.closed || 0); sums.t2 += (x.expTp2 || 0) * (x.closed || 0); });
+    var n = o.closed;
+    o.winRate = n ? o.tp3 / n * 100 : 0; o.tp1Rate = n ? o.tp1 / n * 100 : 0; o.tp2Rate = n ? o.tp2 / n * 100 : 0; o.tp3Rate = n ? o.tp3 / n * 100 : 0; o.slRate = n ? o.sl / n * 100 : 0; o.beRate = n ? o.be / n * 100 : 0;
+    o.totalR = sums.totalR; o.expAll = n ? sums.totalR / n : 0; o.expTp1 = n ? sums.t1 / n : 0; o.expTp2 = n ? sums.t2 / n : 0;
+    return o;
+  }
+
+  R.analytics = { metrics: metrics, walkForward: walkForward, monteCarlo: monteCarlo, verdict: verdict, rOf: rOf, closedOf: closedOf, breakdown: breakdown, addBreakdown: addBreakdown };
 })(window.RTX);
