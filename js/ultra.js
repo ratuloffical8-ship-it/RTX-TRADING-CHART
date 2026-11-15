@@ -11,7 +11,7 @@ window.RTX = window.RTX || {};
   var DEF = {
     on: true, htfMode: 'Strict', minScore: 65, cooldown: 8, oneTrade: true, beOn: true,
     enSweep: true, enCrt: true, enWyck: true, enQm: true, enFib: true,
-    swingLen: 3, sweepWin: 6, wyMaxAtr: 10, qmMaxAge: 40, fibMinAtr: 2.5, fibMaxAge: 60,
+    swingLen: 3, sweepWin: 6, wyMaxAtr: 6, qmMaxAge: 30, fibMinAtr: 2.5, fibMaxAge: 60,
     slBuf: 0.25, slMinAtr: 0.6, slMaxAtr: 3, tp1R: 1, tp2R: 2, tp3R: 3,
     balance: 1000, riskPct: 1, useSess: true, volFilter: true, volLow: 0.5, volHigh: 3,
     showHist: true, maxHist: 10,
@@ -202,8 +202,9 @@ window.RTX = window.RTX || {};
       var bodyRatio = (H[i] - L[i]) > 0 ? Math.abs(C[i] - O[i]) / (H[i] - L[i]) : 0;
 
       // ইঞ্জিন ১: Sweep Reclaim
-      var bullSw = cfg.enSweep && swBullBar !== null && i > swBullBar && C[i] > swBullLvl && C[i] > O[i] && C[i] > H[i - 1];
-      var bearSw = cfg.enSweep && swBearBar !== null && i > swBearBar && C[i] < swBearLvl && C[i] < O[i] && C[i] < L[i - 1];
+      var strongC = bodyRatio >= 0.5 && Math.abs(C[i] - O[i]) >= 0.25 * a;   // জোরালো কনফার্মেশন ক্যান্ডেল: বডি রেঞ্জের ৫০%+ ও ০.২৫×ATR+
+      var bullSw = cfg.enSweep && swBullBar !== null && i > swBullBar && C[i] > swBullLvl && C[i] > O[i] && C[i] > H[i - 1] && strongC;
+      var bearSw = cfg.enSweep && swBearBar !== null && i > swBearBar && C[i] < swBearLvl && C[i] < O[i] && C[i] < L[i - 1] && strongC;
       var lvB1 = bullSw ? swBullExt : null, lvS1 = bearSw ? swBearExt : null;
       if (cfg.perEngine) { if (bullSw) { swBullBar = null; swBullLvl = null; swBullExt = null; } if (bearSw) { swBearBar = null; swBearLvl = null; swBearExt = null; } }  // একক স্ট্র্যাটেজি: একটি সুইপ থেকে একটিই সিগন্যাল
 
@@ -211,8 +212,10 @@ window.RTX = window.RTX || {};
       var crtIdx = -1;
       for (k = 3; k <= 20; k++) { if (i - k < 0) break; if (crtIdx === -1 && (H[i - k] - L[i - k]) > 1.8 * a) crtIdx = k; }
       var crtH = crtIdx > 0 ? H[i - crtIdx] : null, crtL = crtIdx > 0 ? L[i - crtIdx] : null;
-      var bullCrt = cfg.enCrt && crtIdx > 0 && L[i - 1] < crtL && L[i - 1] <= L[i - 2] && C[i] > Math.max(O[i - 1], C[i - 1]) && C[i] > crtL && C[i] < crtH && C[i] > O[i];
-      var bearCrt = cfg.enCrt && crtIdx > 0 && H[i - 1] > crtH && H[i - 1] >= H[i - 2] && C[i] < Math.min(O[i - 1], C[i - 1]) && C[i] < crtH && C[i] > crtL && C[i] < O[i];
+      var crtFreshB = crtIdx > 0, crtFreshS = crtIdx > 0;   // ফাঁদ তাজা: CRT ক্যান্ডেলের পর থেকে ফাঁদের আগ পর্যন্ত কোনো ক্যান্ডেল CRT-র লো/হাইয়ের বাইরে বন্ধ হয়নি (বন্ধ হলে সেটা ব্রেকআউট, ফাঁদ নয়; শুধু উইক হলে চলে)
+      for (k = crtIdx - 1; k >= 2 && crtIdx > 0; k--) { if (C[i - k] < crtL) crtFreshB = false; if (C[i - k] > crtH) crtFreshS = false; }
+      var bullCrt = cfg.enCrt && crtFreshB && L[i - 1] < crtL && L[i - 1] <= L[i - 2] && C[i] > Math.max(O[i - 1], C[i - 1]) && C[i] > crtL && C[i] < crtH && C[i] > O[i] && bodyRatio >= 0.4;
+      var bearCrt = cfg.enCrt && crtFreshS && H[i - 1] > crtH && H[i - 1] >= H[i - 2] && C[i] < Math.min(O[i - 1], C[i - 1]) && C[i] < crtH && C[i] > crtL && C[i] < O[i] && bodyRatio >= 0.4;
       var lvB2 = bullCrt ? L[i - 1] : null, lvS2 = bearCrt ? H[i - 1] : null;
 
       // ইঞ্জিন ৩: Wyckoff Spring / Upthrust
@@ -229,27 +232,27 @@ window.RTX = window.RTX || {};
         if (spL === null && wyRange && L[i - k] < wyL && Math.min(O[i - k], C[i - k]) > wyL) spL = L[i - k];
         if (spH === null && wyRange && H[i - k] > wyH && Math.max(O[i - k], C[i - k]) < wyH) spH = H[i - k];
       }
-      var bullWy = cfg.enWyck && wyRange && spL !== null && C[i] > O[i] && C[i] > H[i - 1] && C[i] > wyL && C[i] < wyH;
-      var bearWy = cfg.enWyck && wyRange && spH !== null && C[i] < O[i] && C[i] < L[i - 1] && C[i] < wyH && C[i] > wyL;
+      var bullWy = cfg.enWyck && wyRange && spL !== null && C[i] > O[i] && C[i] > H[i - 1] && C[i] > wyL && C[i] < wyH && strongC;
+      var bearWy = cfg.enWyck && wyRange && spH !== null && C[i] < O[i] && C[i] < L[i - 1] && C[i] < wyH && C[i] > wyL && strongC;
       var lvB3 = bullWy ? Math.min(spL, wyL) : null, lvS3 = bearWy ? Math.max(spH, wyH) : null;
 
       // ইঞ্জিন ৪: Quasimodo + SMC
-      var neckB = null;
+      var neckB = null;   // নেকলাইন = প্রথম ও শেষ সুইং-লো-র মাঝের সবচেয়ে উঁচু সুইং-হাই (শেষ ৩টি পিভটের মধ্যে)
       if (nn(phi3) && nn(pli1) && nn(pli3)) {
         if (phi3 > pli1 && phi3 < pli3) neckB = ph3;
-        else if (nn(phi2) && phi2 > pli1 && phi2 < pli3) neckB = ph2;
-        else if (nn(phi1) && phi1 > pli1 && phi1 < pli3) neckB = ph1;
+        if (nn(phi2) && phi2 > pli1 && phi2 < pli3 && (neckB === null || ph2 > neckB)) neckB = ph2;
+        if (nn(phi1) && phi1 > pli1 && phi1 < pli3 && (neckB === null || ph1 > neckB)) neckB = ph1;
       }
       var neckS = null;
       if (nn(pli3) && nn(phi1) && nn(phi3)) {
         if (pli3 > phi1 && pli3 < phi3) neckS = pl3;
-        else if (nn(pli2) && pli2 > phi1 && pli2 < phi3) neckS = pl2;
-        else if (nn(pli1) && pli1 > phi1 && pli1 < phi3) neckS = pl1;
+        if (nn(pli2) && pli2 > phi1 && pli2 < phi3 && (neckS === null || pl2 < neckS)) neckS = pl2;
+        if (nn(pli1) && pli1 > phi1 && pli1 < phi3 && (neckS === null || pl1 < neckS)) neckS = pl1;
       }
       var qmBull = nn(pl1) && nn(pl2) && nn(pl3) && nn(pli3) && pl2 < pl1 && pl3 > pl2 && (i - pli3) <= cfg.qmMaxAge;
       var qmBear = nn(ph1) && nn(ph2) && nn(ph3) && nn(phi3) && ph2 > ph1 && ph3 < ph2 && (i - phi3) <= cfg.qmMaxAge;
-      var bullQm = cfg.enQm && qmBull && nn(neckB) && C[i] > neckB && C[i - 1] <= neckB && C[i] > O[i];
-      var bearQm = cfg.enQm && qmBear && nn(neckS) && C[i] < neckS && C[i - 1] >= neckS && C[i] < O[i];
+      var bullQm = cfg.enQm && qmBull && nn(neckB) && C[i] > neckB && C[i - 1] <= neckB && C[i] > O[i] && strongC;
+      var bearQm = cfg.enQm && qmBear && nn(neckS) && C[i] < neckS && C[i - 1] >= neckS && C[i] < O[i] && strongC;
       var lvB4 = bullQm ? pl2 : null, lvS4 = bearQm ? ph2 : null;
 
       // ইঞ্জিন ৫: Price Action + Fib গোল্ডেন পকেট (৫০% - ৭৯%)
@@ -369,6 +372,7 @@ window.RTX = window.RTX || {};
 
   var cfg = Object.assign({}, DEF, lsGet('rtx_ultra_cfg', {}));
   if (!lsGet('rtx_ultra_cfg', {}).entryMode) { cfg.engine = 'raid'; cfg.entryMode = 'retest'; cfg.maxRiskPct = 10; cfg.lotMode = 'fixed'; lsSet('rtx_ultra_cfg', cfg); try { localStorage.removeItem('rtx_ultra_opt'); } catch (_) {} }
+  if ((lsGet('rtx_ultra_cfg', {}).eng2 | 0) < 1) { cfg.eng2 = 1; if (cfg.wyMaxAtr === 10) cfg.wyMaxAtr = 6; if (cfg.qmMaxAge === 40) cfg.qmMaxAge = 30; }   // ইঞ্জিন কড়াকড়ি আপডেট (ভার্সন ১): শুধু পুরোনো ডিফল্ট মান বদলায়, ব্যবহারকারীর নিজের মান নয়
   if (!R.strat || !R.strat.DEFS[cfg.strategy]) cfg.strategy = 'raid';
   cfg.engine = cfg.strategy === 'raid' ? 'raid' : 'strat'; cfg.power = true;   // পুরোনো 'decision'/'classic' আর ড্রপডাউনে নেই
   lsSet('rtx_ultra_cfg', cfg);
@@ -556,7 +560,7 @@ window.RTX = window.RTX || {};
     ls.push('<b>স্কোর ' + w.score + '/১০০</b> (ন্যূনতম ' + w.minScore + '): ট্রিগার ' + P.trigger + '/' + M.trigger + ' · বড় টাইমফ্রেম ' + P.htf + '/' + M.htf + ' · ট্রেন্ড (EMA50/200) ' + P.trend + '/' + M.trend + ' · EMA100 ' + P.ema + '/' + M.ema + ' · VWAP ' + P.vwap + '/' + M.vwap + ' · Heikin Ashi ' + P.ha + '/' + M.ha + ' · ক্যান্ডেল ' + P.candle + '/' + M.candle + ' · ভলিউম ' + P.vol + '/' + M.vol + '। স্কোর শুধু কয়টা শর্ত মিলেছে তা বলে, জেতার সম্ভাবনা নয়।');
     ls.push('<b>ঝুঁকি:</b> ' + mny.lot.toFixed(2) + ' লটে SL ছুঁলে ক্ষতি ' + money(mny.risk) + (mny.pct !== null ? ' = ব্যালেন্স ' + money(mny.bal) + '-এর ' + mny.pct.toFixed(2) + '%' : '') + (w.risk.warn ? ' ⚠️ ৫%-এর বেশি' : '') + (w.costs.on ? '। স্প্রেড ' + w.costs.spread + ' ও স্লিপেজ ' + w.costs.slip + ' হিসাবে ধরা আছে' : ''));
     var g = w.gate.map(function (x) { return '<div class="gate ' + (x.ok ? 'ok' : 'no') + '">' + (x.ok ? '✅' : '❌') + ' ' + esc(x.label) + (x.note ? '<span>' + esc(x.note) + '</span>' : '') + '</div>'; }).join('');
-    return '<div class="why"><div class="why-h">কেন এই সিগন্যাল এলো? (' + esc(s.name) + ')</div><ol>' + ls.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol><details class="fold"><summary>৮টি শর্তের পরীক্ষা (সবগুলো ✅ হলেই সিগন্যাল)</summary><div class="fbody">' + g + '</div></details></div>';
+    return '<div class="why"><div class="why-h">কেন এই সিগন্যাল এলো? (' + esc(s.name) + ')</div><ol>' + ls.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ol><details class="fold"><summary>৯টি শর্তের পরীক্ষা (সবগুলো ✅ হলেই সিগন্যাল)</summary><div class="fbody">' + g + '</div></details></div>';
   }
 
   function stratCardHtml() {
@@ -637,7 +641,7 @@ window.RTX = window.RTX || {};
       res.board.forEach(function (r) { h += kv(esc(r.name), r.n ? r.n + ' ট্রেড · জয় ' + r.win.toFixed(0) + '% · ' + (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R' : '—', r.n && r.exp > 0 ? 'up' : r.n ? 'dn' : ''); });
       h += '<div class="note-info">জয় ৩৩%-এর বেশি ও +R হলে ২R টার্গেটে লাভজনক ছিল।</div></div>';
     }
-    h += '<div class="card"><b>🔬 ১২টি স্ট্র্যাটেজির তুলনা (এই মার্কেট ও টাইমফ্রেমে)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">বর্তমান মোড ও এন্ট্রি ধরনে প্রতিটাকে আলাদা করে চালিয়ে দেখায় কোনটা এই চার্টের ডেটায় কেমন চলেছে। শেষ ৩৫% ক্যান্ডেল আলাদা দেখানো হয় (সেটাই বেশি নির্ভরযোগ্য)।</div><div class="btnrow"><button class="btn primary" id="ul-cmp">তুলনা করো</button></div><div id="ul-cmpres">' + cmpHtml + '</div></div>';
+    h += '<div class="card"><b>🔬 ১২টি ইঞ্জিনের ফলাফল (এই মার্কেট ও টাইমফ্রেমে)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">বর্তমান মোড ও এন্ট্রি ধরনে প্রতিটি ইঞ্জিন আলাদা চালিয়ে দেখায়: কয়টি সিগন্যাল এলো, কয়টি TP1/TP2/TP3 ছুঁলো, কয়টি SL খেলো, কয়টি জয়-লস। পুরোনো প্রায় ৬০০০ ক্যান্ডেল পর্যন্ত লোড করে (কয়েক সেকেন্ড লাগে)।</div><div class="btnrow"><button class="btn primary" id="ul-cmp">তুলনা করো</button></div><div id="ul-cmpres">' + cmpHtml + '</div></div>';
     h += '<div class="card"><b>🎯 অটো-সেটআপ</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মার্কেট ও টাইমফ্রেমে ' + (R.opt ? R.opt.combosFor(cfg.engine) : '') + 'টি সেটিং পরীক্ষা করে সেরাটা শেষ ৩৫% অদেখা ডেটায় যাচাই করে। কয়েক সেকেন্ড লাগে।</div><div class="btnrow"><button class="btn primary" id="ul-opt">খোঁজো</button><button class="btn" id="ul-optoff">অটো-সেটআপ মুছো</button></div><div id="ul-optres">' + optHtml + '</div></div>';
     h += '<div class="note-info">সব হিসাব শুধু এই চার্টে এখন যে ক্যান্ডেল লোড আছে তার। পুরোনো ফল ভবিষ্যতের গ্যারান্টি নয়। আসল টাকায় আগে ডেমোতে যাচাই করো।</div>';
     return h;
@@ -743,16 +747,71 @@ window.RTX = window.RTX || {};
     optBusy = false;
   }
 
-  /* ---------- ১২ স্ট্র্যাটেজির তুলনা ---------- */
+  /* ---------- ১২ ইঞ্জিনের বিস্তারিত ফলাফল ----------
+     প্রতিটি ইঞ্জিন আলাদা করে (বর্তমান মোড ও এন্ট্রি ধরনে) পুরো লোড-করা ইতিহাসে চালিয়ে ট্রেড গোনা হয়:
+     সিগন্যাল, এন্ট্রি, মিস, চলমান, TP1/TP2/TP3, SL, ব্রেক-ইভেন, জয়/লস। সব সংখ্যা ট্রেডের আসল স্ট্যাটাস থেকে গোনা। */
   var cmpHtml = '', cmpBusy = false;
+  var cmpStore = lsGet('rtx_cmp_store', {});
+  function fmtR(x) { return (x >= 0 ? '+' : '') + x.toFixed(2); }
+  function pctOf(a, b) { return b ? Math.round(a / b * 100) + '%' : '—'; }
+  function cmpTable(rows, selK) {
+    var h = '<div style="overflow-x:auto;-webkit-overflow-scrolling:touch"><table class="rtab"><thead><tr><th>ইঞ্জিন</th><th>সিগন্যাল</th><th>এন্ট্রি</th><th>মিস</th><th>চলমান</th><th>TP1</th><th>TP2</th><th>TP3 ✅</th><th>BE</th><th>SL ❌</th><th>TP3%</th><th>R/ট্রেড</th></tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var b = r.b, cls = b.closed >= 10 && b.expAll > 0 ? 'up' : b.closed && b.expAll < 0 ? 'dn' : '';
+      h += '<tr' + (selK === r.k ? ' class="sel"' : '') + '><td>' + (selK === r.k ? '✅ ' : '') + esc(r.short) + '</td><td>' + b.signals + '</td><td>' + b.entered + '</td><td>' + b.missed + '</td><td>' + b.open + '</td><td>' + b.tp1 + '</td><td>' + b.tp2 + '</td><td><b>' + b.tp3 + '</b></td><td>' + b.be + '</td><td><b>' + b.sl + '</b></td><td>' + pctOf(b.tp3, b.closed) + '</td><td class="' + cls + '">' + (b.closed ? fmtR(b.expAll) : '—') + '</td></tr>';
+    });
+    return h + '</tbody></table></div>';
+  }
+  function cmpDetail(r, selK) {
+    var b = r.b, d = R.strat.DEFS[r.k];
+    var head = (selK === r.k ? '✅ ' : '') + esc(d.name) + ' — সিগন্যাল ' + b.signals + ' · শেষ ' + b.closed + ' · TP3 ' + b.tp3 + ' · SL ' + b.sl;
+    var body = '';
+    if (!b.signals) body = '<div class="note-info">এই ইতিহাসে এই ইঞ্জিন কোনো সিগন্যাল দেয়নি (বা সব ফিল্টারে আটকেছে)।</div>';
+    else {
+      body += kv('মোট সিগন্যাল', b.signals + ' (BUY ' + b.buy + ' · SELL ' + b.sell + ')');
+      body += kv('এন্ট্রি ধরেছে', b.entered + ' · মিস (লিমিটে দাম ফেরেনি) ' + b.missed + ' · নতুন সিগন্যালে বাতিল ' + b.replaced + ' · লিমিটের অপেক্ষায় ' + b.pending);
+      body += kv('এখনো চলছে', b.open + (b.openTp1 ? ' (এর মধ্যে ' + b.openTp1 + 'টি TP1 ছুঁয়েছে)' : ''));
+      body += kv('শেষ হয়েছে', b.closed + 'টি = TP3 ' + b.tp3 + ' + BE ' + b.be + ' + SL ' + b.sl);
+      body += kv('TP1 ছুঁয়েছে', b.tp1 + ' / ' + b.closed + ' (' + pctOf(b.tp1, b.closed) + ')');
+      body += kv('TP2 ছুঁয়েছে', b.tp2 + ' / ' + b.closed + ' (' + pctOf(b.tp2, b.closed) + ')');
+      body += kv('TP3 ছুঁয়েছে (পুরো জয়)', b.tp3 + ' / ' + b.closed + ' (' + pctOf(b.tp3, b.closed) + ')', 'up');
+      body += kv('ব্রেক-ইভেন (TP1 ছুঁয়ে এন্ট্রিতে ফিরে বেরোল)', b.be + ' (' + pctOf(b.be, b.closed) + ')');
+      body += kv('SL খেয়েছে (লস)', b.sl + ' (' + pctOf(b.sl, b.closed) + ')' + (b.slAfterTp1 ? ' · এর মধ্যে ' + b.slAfterTp1 + 'টি TP1 ছোঁয়ার পরে' : ''), b.sl ? 'dn' : '');
+      if (b.closed) {
+        body += kv('গড় ফল/ট্রেড: TP3-তে পুরো বন্ধ (এখনকার নিয়ম)', fmtR(b.expAll) + 'R · মোট ' + fmtR(b.totalR) + 'R', b.expAll > 0 ? 'up' : 'dn');
+        body += kv('যদি পুরোটা TP1-এ বন্ধ করা হতো', fmtR(b.expTp1) + 'R', b.expTp1 > 0 ? 'up' : 'dn');
+        body += kv('যদি পুরোটা TP2-তে বন্ধ করা হতো', fmtR(b.expTp2) + 'R', b.expTp2 > 0 ? 'up' : 'dn');
+        body += kv('শেষ ৩৫% ক্যান্ডেলে (অদেখা অংশ)', r.tn + ' ট্রেড' + (r.tn ? ' · ' + fmtR(r.texp) + 'R' : ''), r.tn && r.texp > 0 ? 'up' : r.tn ? 'dn' : '');
+      }
+    }
+    var pick = selK === r.k ? '' : '<div class="btnrow" style="margin:6px 0 0"><button class="btn" data-pick="' + r.k + '">এটা বাছো</button></div>';
+    return '<details class="fold"><summary>' + head + '</summary><div class="fbody">' + body + pick + '</div></details>';
+  }
+  function cmpAggregate(mk) {
+    var keys = Object.keys(cmpStore).filter(function (k) { return cmpStore[k].mk === mk; });
+    if (keys.length < 2) return '';
+    var rows = R.strat.ORDER.map(function (k) {
+      var list = keys.map(function (kk) { return cmpStore[kk].rows[k]; }).filter(Boolean);
+      return { k: k, short: R.strat.DEFS[k].short, b: R.analytics.addBreakdown(list), tn: 0, texp: 0 };
+    });
+    var names = keys.map(function (kk) { return esc(cmpStore[kk].label); }).join(', ');
+    return '<div class="card"><b>📊 সব মার্কেট মিলিয়ে (সংরক্ষিত রান)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মোড ও এন্ট্রি ধরনে যেসব মার্কেট/টাইমফ্রেমে "তুলনা করো" চালানো হয়েছে সেগুলোর যোগফল: ' + names + '। আরও মার্কেটে চালালে এখানে যোগ হবে।</div>' + cmpTable(rows, cfg.strategy) + '<div class="btnrow"><button class="btn" id="ul-cmpclr">সংরক্ষিত রান মুছো</button></div></div>';
+  }
   async function runCompare() {
     if (cmpBusy || !R.strat) return;
     cmpBusy = true; var sym = cur.sym, sec = cur.sec;
     function put(html) { cmpHtml = html; var o = $('ul-cmpres'); if (o && TAB === 'perf') o.innerHTML = html; }
     try {
-      var all = R.chart.candles();
-      if (all.length < 200) { put('<div class="note-warn">তুলনার জন্য কমপক্ষে ২০০ ক্যান্ডেল লাগে (এখন ' + all.length + ')।</div>'); cmpBusy = false; return; }
-      var cs = all.slice(0, all.length - 1), ec = effCfg(), info = marketInfo(sym), h = htfStore[sym] || { h4: null, h1: null, d: null }, mode = cfg.htfMode;
+      var all = R.chart.candles().slice(0, -1), pages = 0, tfo = R.TFS.filter(function (t) { return t.sec === sec; })[0];
+      if (all.length < 100) { put('<div class="note-warn">তুলনার জন্য কমপক্ষে ১০০ ক্যান্ডেল লাগে (এখন ' + all.length + ')।</div>'); cmpBusy = false; return; }
+      put('<div class="note-info">পুরোনো ইতিহাস লোড হচ্ছে…</div>');
+      while (pages < 5 && tfo && all.length) {
+        var more = await R.data.klines(sym, tfo.id, 1000, all[0].time * 1000 - 1).catch(function () { return []; });
+        more = more.filter(function (c) { return c.time < all[0].time; });
+        if (!more.length) break; all = more.concat(all); pages++;
+      }
+      if (cur.sym !== sym || cur.sec !== sec) { cmpBusy = false; return; }
+      var cs = all, ec = effCfg(), info = marketInfo(sym), h = htfStore[sym] || { h4: null, h1: null, d: null }, mode = cfg.htfMode;
       if (!h.h4 && !h.h1 && sec < 14400) mode = 'Off';
       var base = engine(cs, h, Object.assign({}, ec, { enSweep: true, enCrt: true, enWyck: true, enQm: true, enFib: true, perEngine: true }), info, sec, mode);
       var split = Math.floor(cs.length * 0.65), rows = [], q;
@@ -761,16 +820,20 @@ window.RTX = window.RTX || {};
         put('<div class="note-info">চলছে… ' + (q + 1) + '/' + R.strat.ORDER.length + ' (' + esc(R.strat.DEFS[k].name) + ')</div>');
         await new Promise(function (r) { setTimeout(r, 0); });
         var c2 = Object.assign({}, ec, { strategy: k, engine: k === 'raid' ? 'raid' : 'strat', power: true, noBoard: true, ov: {} });
-        var res = R.power.run(cs, base, c2, info, sec, mode), m = R.analytics.metrics(res.trades), te = R.opt.stats(res.trades, split, cs.length);
-        rows.push({ k: k, name: R.strat.DEFS[k].name, n: m.n, win: m.winRate, exp: m.expR, tn: te.n, texp: te.exp });
+        var res = R.power.run(cs, base, c2, info, sec, mode), te = R.opt.stats(res.trades, split, cs.length);
+        rows.push({ k: k, short: R.strat.DEFS[k].short, b: R.analytics.breakdown(res.trades), tn: te.n, texp: te.exp });
       }
-      rows.sort(function (a, b) { return (b.n > 0 ? 1 : 0) - (a.n > 0 ? 1 : 0) || b.exp - a.exp; });
-      var html = '<div class="note-info">' + cs.length + ' ক্যান্ডেল · মোড ' + esc((ec.mode || 'smart').toUpperCase()) + ' · ' + (ec.entryMode === 'fast' ? 'দ্রুত' : 'রিটেস্ট') + ' এন্ট্রি</div>';
-      rows.forEach(function (r) {
-        var good = r.n >= 10 && r.exp > 0 && r.tn >= 3 && r.texp > 0;
-        html += '<div class="kv"><span>' + (cfg.strategy === r.k ? '✅ ' : '') + esc(r.name) + '</span><b class="' + (good ? 'up' : r.n && r.exp < 0 ? 'dn' : '') + '">' + (r.n ? r.n + ' ট্রেড · জয় ' + r.win.toFixed(0) + '% · ' + (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R · শেষ ৩৫%: ' + r.tn + ' ট্রেড ' + (r.tn ? (r.texp >= 0 ? '+' : '') + r.texp.toFixed(2) + 'R' : '') : 'কোনো সিগন্যাল নেই') + '</b></div>' + (cfg.strategy === r.k ? '' : '<div class="btnrow" style="margin:0 0 6px"><button class="btn" data-pick="' + r.k + '">এটা বাছো</button></div>');
-      });
-      html += '<div class="note-info">সবুজ = মোট ১০+ ট্রেড, শেষ ৩৫%-ও লাভে। কম ট্রেডের ফল (বিশেষ করে ৩০-এর নিচে) ভাগ্যও হতে পারে। শুধু এই চার্টে এখন লোড থাকা ক্যান্ডেলের হিসাব, ভবিষ্যতের গ্যারান্টি নয়। সারাক্ষণ একটাই বাছাই না করে আগে আলাদা আলাদা মার্কেট-টাইমফ্রেমে দেখো।</div>';
+      var mk = (ec.mode || 'smart') + '|' + (ec.entryMode === 'fast' ? 'fast' : 'retest'), tfLabel = tfo ? tfo.label || tfo.id : String(sec);
+      var store = {}; rows.forEach(function (r) { store[r.k] = r.b; });
+      cmpStore[sym + '|' + sec + '|' + mk] = { mk: mk, label: sym + ' ' + tfLabel, ts: Date.now(), bars: cs.length, rows: store };
+      lsSet('rtx_cmp_store', cmpStore);
+      var days = cs.length > 1 ? Math.max(1, Math.round((cs[cs.length - 1].time - cs[0].time) / 86400)) : 0;
+      var html = '<div class="note-info"><b>' + esc(sym) + ' ' + esc(tfLabel) + '</b> · ' + cs.length + ' ক্যান্ডেল (প্রায় ' + days + ' দিন) · মোড ' + esc((ec.mode || 'smart').toUpperCase()) + ' · ' + (ec.entryMode === 'fast' ? 'দ্রুত' : 'রিটেস্ট') + ' এন্ট্রি</div>';
+      html += cmpTable(rows, cfg.strategy);
+      html += '<div class="note-info">কীভাবে পড়বে: <b>সিগন্যাল</b> = মোট তৈরি হওয়া; <b>এন্ট্রি</b> = আসলে ঢুকেছে; <b>মিস</b> = রিটেস্ট লিমিটে দাম ফেরেনি (লস নয়); <b>চলমান</b> = এখনো শেষ হয়নি। <b>TP1/TP2</b> = শেষ হওয়া ট্রেডের মধ্যে কতটি অন্তত ওই টার্গেট ছুঁয়েছে (জমা গোনা, তাই TP1 ≥ TP2 ≥ TP3)। <b>TP3 ✅</b> = পুরো জয়। <b>BE</b> = TP1 ছুঁয়ে এন্ট্রিতে ফিরে বেরিয়েছে (লাভ-লস ০)। <b>SL ❌</b> = লস। শেষ হওয়া = TP3 + BE + SL। <b>R/ট্রেড</b> = গড় ফল (SL = −১R)। ইঞ্জিনের নামে চাপলে পুরো হিসাব খুলবে।</div>';
+      rows.forEach(function (r) { html += cmpDetail(r, cfg.strategy); });
+      html += '<div class="note-info">এটা শুধু এই চার্টে লোড হওয়া ' + cs.length + ' ক্যান্ডেলের পুরোনো হিসাব, ভবিষ্যতের গ্যারান্টি নয়। ট্রেড ৩০-এর কম হলে ফলাফল ভাগ্যও হতে পারে। একটাই মার্কেটে নয়, ৫টা মার্কেটেই চালিয়ে নিচের যোগফল দেখো।</div>';
+      html += cmpAggregate(mk);
       if (cur.sym === sym && cur.sec === sec) put(html);
     } catch (e) { put('<div class="note-warn">ত্রুটি: ' + esc(e.message) + '</div>'); }
     cmpBusy = false;
@@ -810,6 +873,7 @@ window.RTX = window.RTX || {};
       if (d.mode) { setMode(d.mode); return; }
       if (id === 'ul-opt') { runOpt(); return; }
       if (id === 'ul-cmp') { runCompare(); return; }
+      if (id === 'ul-cmpclr') { cmpStore = {}; lsSet('rtx_cmp_store', cmpStore); cmpHtml = '<div class="note-info">সংরক্ষিত রান মুছে গেছে।</div>'; var oo = $('ul-cmpres'); if (oo) oo.innerHTML = cmpHtml; return; }
       if (d.pick) { setStrategy(d.pick); renderSheet(); return; }
       if (id === 'ul-optoff') { delete optStore[optKey()]; lsSet('rtx_ultra_opt', optStore); optHtml = '<div class="note-info">এই মার্কেটের অটো-সেটআপ মুছে গেছে।</div>'; sched(0, true); renderSheet(); return; }
       if (d.apply !== undefined) { var r = lastOpt && lastOpt.top[+d.apply]; if (r) { optStore[optKey()] = r.cfg; lsSet('rtx_ultra_opt', optStore); say('অটো-সেটআপ বসানো হয়েছে'); sched(0, true); } return; }
