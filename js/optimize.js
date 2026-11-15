@@ -13,12 +13,12 @@ window.RTX = window.RTX || {};
   var MODE_BN = { safe: 'SAFE', smart: 'SMART', aggressive: 'AGGRESSIVE' };
 
   function stats(trades, from, to) {
-    var cl = trades.filter(function (t) { return t.bar >= from && t.bar < to && (t.status === 4 || t.status === 5 || t.status === 6); });
+    var cl = trades.filter(function (t) { return t.bar >= from && t.bar < to && (t.status === 4 || t.status === 5 || t.status === 6 || t.status === 9); });
     var n = cl.length, tp3 = 0, sl = 0, be = 0, tp1 = 0, rSum = 0;
     cl.forEach(function (t) {
       var r = R.analytics.rOf(t); rSum += r;
       if (t.tp1Hit) tp1++;
-      if (t.status === 4) tp3++; else if (t.status === 5) sl++; else be++;
+      if (t.status === 4) tp3++; else if (t.status === 5) sl++; else if (t.status === 6 || r === 0) be++; else if (r < 0) sl++;
     });
     return { n: n, tp3: tp3, sl: sl, be: be, tp1: tp1, hit3: n ? tp3 / n * 100 : 0, hit1: n ? tp1 / n * 100 : 0, exp: n ? rSum / n : 0 };
   }
