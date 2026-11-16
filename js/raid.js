@@ -15,8 +15,8 @@ window.RTX = window.RTX || {};
   /* তিনটি মোড: শুরুর মান (পরীক্ষায় প্রমাণিত সেরা নয়) — cfg.ov দিয়ে বদলানো যায় */
   var MODES = {
     safe: { minScore: 80, minRR: 2.5, htf: 'strict', mss: 'strict', minWick: 0.30, maxSweepAtr: 2.0, pend: 4, volLow: 0.6, volHigh: 2.5 },
-    smart: { minScore: 70, minRR: 2.0, htf: 'normal', mss: true, minWick: 0.20, maxSweepAtr: 2.5, pend: 4, volLow: 0.5, volHigh: 3 },
-    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', mss: false, minWick: 0.12, maxSweepAtr: 3.0, pend: 3, volLow: 0.4, volHigh: 3.5 }
+    smart: { minScore: 65, minRR: 2.0, htf: 'normal', mss: true, minWick: 0.15, maxSweepAtr: 2.5, pend: 4, volLow: 0.5, volHigh: 3 },
+    aggressive: { minScore: 55, minRR: 1.5, htf: 'loose', mss: false, minWick: 0.12, maxSweepAtr: 3.0, pend: 3, volLow: 0.4, volHigh: 3.5 }
   };
   var MODE_INFO = {
     safe: { name: 'SAFE (নিরাপদ)', desc: 'শুধু সেরা সেটআপ। বড় টাইমফ্রেম মিলতে হবে, লাভ-ঝুঁকির অনুপাত কমপক্ষে ১:২.৫। সিগন্যাল কম আসে।' },
