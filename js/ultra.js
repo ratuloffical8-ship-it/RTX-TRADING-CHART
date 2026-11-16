@@ -1,4 +1,4 @@
-// ফাইলের নাম: ultra.js
+// ফাইলের নাম / পাথ: js/ultra.js
 // পাথ: js/ultra.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — RTX ULTRA PRO MAX (Pine Script v6 থেকে JavaScript-এ রূপান্তর)
    ৫টি ইঞ্জিন: Sweep Reclaim, CRT + TBS, Wyckoff + ICT, QM + SMC, Price Action + Fib
@@ -398,13 +398,33 @@ window.RTX = window.RTX || {};
 
   function sched(ms, silent) { clearTimeout(tm); tm = setTimeout(function () { recompute(silent); }, ms || 0); }
 
+  /* ডেটা যাচাই: ক্রমহীন/ডুপ্লিকেট/ভুল OHLC ক্যান্ডেল বাদ। পুরোনো (স্টেল) ফিড চেনা। মার্কেট বন্ধ থাকলে (গোল্ড/BTC-USD শনি-রবি) স্টেল ধরা হয় না */
+  function sanitize(cs) {
+    var out = [], bad = 0, i, c, p;
+    for (i = 0; i < cs.length; i++) {
+      c = cs[i]; p = out[out.length - 1];
+      if (!(isFinite(c.open) && isFinite(c.high) && isFinite(c.low) && isFinite(c.close)) || c.high < Math.max(c.open, c.close) - 1e-9 || c.low > Math.min(c.open, c.close) + 1e-9 || c.low <= 0 || (p && c.time <= p.time)) { bad++; continue; }
+      out.push(c);
+    }
+    return { cs: out, bad: bad };
+  }
+  function staleInfo(cs, sec, sym) {
+    var last = cs[cs.length - 1]; if (!last) return null;
+    var now = Date.now() / 1000, age = now - last.time, isFxS = String(sym).indexOf('/') > 0;
+    if (isFxS) { var d = new Date(), dow = d.getUTCDay(), hr = d.getUTCHours(); if (dow === 6 || (dow === 0 && hr < 22) || (dow === 5 && hr >= 22)) return null; }
+    return age > sec * 4 + 120 ? Math.round(age / 60) : null;
+  }
+
   function recompute(silent) {
     var info = marketInfo(cur.sym), ec = effCfg();
     if (!cfg.on) { R.chart.setMarkers([]); R.chart.setOverlay(null); state.res = null; state.warn = ''; paint(); return; }
-    var all = R.chart.candles();
+    var all = R.chart.candles(), sn = sanitize(all); all = sn.cs;
     if (all.length < 70) { state.res = null; R.chart.setMarkers([]); R.chart.setOverlay(null); paint(); return; }
     var h = htfStore[cur.sym] || { h4: null, h1: null, d: null }, mode = cfg.htfMode, warn = '';
     if (!h.h4 && !h.h1) { if (mode !== 'Off' && cur.sec < 14400) warn = 'HTF (4H/1H) ডেটা পাওয়া যায়নি, তাই এখন HTF ফিল্টার ছাড়াই চলছে।'; if (cur.sec < 14400) mode = 'Off'; }
+    if (sn.bad) warn += (warn ? ' ' : '') + 'ডেটায় ' + sn.bad + 'টি ভুল/ডুপ্লিকেট ক্যান্ডেল বাদ দিয়ে হিসাব হয়েছে।';
+    var stale = staleInfo(all, cur.sec, cur.sym);
+    if (stale) warn += (warn ? ' ' : '') + '⚠️ ডেটা পুরোনো: শেষ ক্যান্ডেল ' + stale + ' মিনিট আগের। নতুন সিগন্যাল বন্ধ রাখা হয়েছে, ফিড ঠিক হলে চালু হবে।';
     state.warn = warn;
     var res;
     try { res = engine(all.slice(0, all.length - 1), h, Object.assign({}, ec, { enSweep: true, enCrt: true, enWyck: true, enQm: true, enFib: true, perEngine: !!(R.strat && R.strat.isStrat(ec.strategy)) }), info, cur.sec, mode); }
@@ -413,6 +433,7 @@ window.RTX = window.RTX || {};
       try { res = R.power.run(all.slice(0, all.length - 1), res, ec, info, cur.sec, mode); }
       catch (e) { say('POWER ত্রুটি: ' + e.message); return; }
     }
+    if (stale && res && res.now) res.now.alert = null;   // পুরোনো ডেটায় নতুন প্রি-অ্যালার্ট/এন্ট্রি দেখাবো না
     state.res = res; state.info = info; state.cfg = ec;
 
     R.chart.setMarkers(res.trades.map(function (t) {
