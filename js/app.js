@@ -1,4 +1,4 @@
-// ফাইলের নাম: app.js
+// ফাইলের নাম / পাথ: js/app.js
 // পাথ: js/app.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — অ্যাপ লজিক: টপবার, টুলবার, লাইভ ডেটা, ইন্ডিকেটর শিট, শেখা ও দৈনিক টাস্ক */
 (function (R) {
@@ -98,7 +98,13 @@
     R.chart.setData(arr, tf.sec, state.symbol);
     updatePrice(); legend(R.chart.last());
     ld.style.display = 'none';
-    var onCandle = function (c) { if (my !== token) return; R.chart.update(c); updatePrice(); legend(c); };
+    var gapReload = 0;
+    var onCandle = function (c) {
+      if (my !== token) return;
+      var lc = R.chart.last();
+      /* ক্যাশ/পুরোনো ডেটার পর লাইভ ক্যান্ডেল অনেক দূরে এলে চার্টে ফাঁক ও এলোমেলো ভাব হয়: পুরো ডেটা নতুন করে আনি */
+      if (lc && c.time - lc.time > tf.sec * 3 && Date.now() - gapReload > 20000) { gapReload = Date.now(); load(); return; }
+      R.chart.update(c); updatePrice(); legend(c); };
     live = demo ? R.data.demoLive(tf.sec, R.chart.last, onCandle, setStatus)
                 : R.data.live(state.symbol, state.tf, onCandle, setStatus);
   }
