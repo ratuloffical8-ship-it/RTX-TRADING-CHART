@@ -1,4 +1,4 @@
-// ফাইলের নাম: raid.js
+// ফাইলের নাম / পাথ: js/raid.js
 // পাথ: js/raid.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — "লিকুইডিটি রেইড রিভার্সাল" ইঞ্জিন (Batch D)
    ধারণা (ICT/SMC): বড় খেলোয়াড়রা আগের হাই/লো-র ওপরে-নিচে জমে থাকা স্টপ লস সংগ্রহ করে (লিকুইডিটি সুইপ), তারপর উল্টো দিকে দাম ঘোরায়।
@@ -14,9 +14,9 @@ window.RTX = window.RTX || {};
 
   /* তিনটি মোড: শুরুর মান (পরীক্ষায় প্রমাণিত সেরা নয়) — cfg.ov দিয়ে বদলানো যায় */
   var MODES = {
-    safe: { minScore: 80, minRR: 2.5, htf: 'strict', mss: 'strict', minWick: 0.30, maxSweepAtr: 2.0, pend: 10, volLow: 0.6, volHigh: 2.5 },
-    smart: { minScore: 70, minRR: 2.0, htf: 'normal', mss: true, minWick: 0.20, maxSweepAtr: 2.5, pend: 12, volLow: 0.5, volHigh: 3 },
-    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', mss: false, minWick: 0.12, maxSweepAtr: 3.0, pend: 14, volLow: 0.4, volHigh: 3.5 }
+    safe: { minScore: 80, minRR: 2.5, htf: 'strict', mss: 'strict', minWick: 0.30, maxSweepAtr: 2.0, pend: 4, volLow: 0.6, volHigh: 2.5 },
+    smart: { minScore: 70, minRR: 2.0, htf: 'normal', mss: true, minWick: 0.20, maxSweepAtr: 2.5, pend: 4, volLow: 0.5, volHigh: 3 },
+    aggressive: { minScore: 60, minRR: 1.5, htf: 'loose', mss: false, minWick: 0.12, maxSweepAtr: 3.0, pend: 3, volLow: 0.4, volHigh: 3.5 }
   };
   var MODE_INFO = {
     safe: { name: 'SAFE (নিরাপদ)', desc: 'শুধু সেরা সেটআপ। বড় টাইমফ্রেম মিলতে হবে, লাভ-ঝুঁকির অনুপাত কমপক্ষে ১:২.৫। সিগন্যাল কম আসে।' },
@@ -193,11 +193,11 @@ window.RTX = window.RTX || {};
       var limit, mode2 = entryMode, entryNote;
       if (entryMode === 'fast') { limit = C[m]; entryNote = 'CISD ক্যান্ডেল বন্ধ হওয়ার দামে সঙ্গে সঙ্গে'; }
       else {
-        var mid = fvg ? (fvg.top + fvg.bot) / 2 : (C[m] + ev.lvl) / 2;
+        var bodyP = Math.abs(O[m] - C[m]), pb = Math.min(Math.max(0.35 * bodyP, 0.1 * a), 0.4 * a);   // অল্প পুলব্যাক: বডির ৩৫% (০.১–০.৪×ATR)
         var cap = d === -1 ? ev.ext - 0.3 * a : ev.ext + 0.3 * a;
-        limit = d === -1 ? Math.min(mid, cap) : Math.max(mid, cap);
+        limit = rt(d === -1 ? Math.min(C[m] + pb, cap) : Math.max(C[m] - pb, cap));
         if ((d === -1 && limit <= C[m]) || (d === 1 && limit >= C[m])) { limit = C[m]; mode2 = 'fast'; entryNote = 'রিটেস্ট জোন পাওয়া যায়নি, তাই দ্রুত এন্ট্রি'; }
-        else entryNote = (fvg ? 'CISD-র তৈরি FVG-র মাঝামাঝি (' : 'CISD লেভেল ও বর্তমান দামের মাঝামাঝি (') + rt(limit) + ') দাম ফিরলে লিমিট';
+        else entryNote = (fvg ? 'ক্যান্ডেল বডির অল্প পিছনে (' : 'ক্যান্ডেল বডির অল্প পিছনে (') + rt(limit) + ') দাম ফিরলে লিমিট';
       }
       var entry = rt(limit + d * halfCost), buf = spec.spread + Math.max(0.1 * a, 2 * mt), slLvl = rt(ev.ext - d * buf), riskD = Math.abs(entry - slLvl);
       var okSL = (entry - slLvl) * d > 0 && riskD >= Math.max(slMinAtr * a, spec.spread * 3) && riskD <= slMaxAtr * a;
