@@ -1,4 +1,4 @@
-// ফাইলের নাম: tools.js
+// ফাইলের নাম / পাথ: js/tools.js
 // পাথ: js/tools.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — টুলস: ফরেক্স ডেটা (Twelve Data), রিস্ক ক্যালকুলেটর, ট্রেড জার্নাল */
 window.RTX = window.RTX || {};
@@ -120,13 +120,24 @@ window.RTX = window.RTX || {};
      এখন প্রথমবার যে সোর্স কাজ করে, পুরো সেশনে (পুরোনো ক্যান্ডেল আনা ও লাইভসহ) শুধু সেটাই চলে। সোর্স বদলাতে হলে রিলোড।
      গোল্ডের অগ্রাধিকার: Yahoo XAUUSD=X (স্পট) → না পেলে Binance XAUUSDT (এটা স্পট নয়, তাই চার্টে স্পষ্ট লেখা থাকে) */
   var LOCK = {}, FROMCACHE = {}, BG = {};
+  /* ফলব্যাক সোর্স: Yahoo/প্রক্সি না পেলে সরাসরি ব্রাউজার থেকে পাবলিক API। গোল্ড: Binance XAUUSDT ফিউচার্স → PAXG (গোল্ড-ব্যাকড, স্পটের খুব কাছে) → Bybit XAUUSDT। BTC/USD: Binance BTCUSDT → Bybit */
+  var FBSYM = { binance: 'XAUUSDT', pax: 'PAXGUSDT', bspot: 'BTCUSDT' };
+  var FBLIST = { 'XAU/USD': ['binance', 'pax', 'bybit'], 'BTC/USD': ['bspot', 'bybit'] };
+  var BYSYM = { 'XAU/USD': 'XAUUSDT', 'BTC/USD': 'BTCUSDT' }, BYTF = { '1m': '1', '3m': '3', '5m': '5', '15m': '15', '30m': '30', '1h': '60', '4h': '240', '1d': 'D', '1w': 'W' };
+  async function bybitK(symbol, tf, size, endTime) {
+    var u = 'https://api.bybit.com/v5/market/kline?category=linear&symbol=' + BYSYM[symbol] + '&interval=' + BYTF[tf] + '&limit=' + Math.min(size || 200, 1000) + (endTime ? '&end=' + endTime : '');
+    var r = await fetch(u); if (!r.ok) throw new Error('Bybit HTTP ' + r.status);
+    var j = await r.json(); if (!j || !j.result || !j.result.list || !j.result.list.length) throw new Error('Bybit ডেটা নেই');
+    return j.result.list.map(function (k) { return { time: Math.floor(+k[0] / 1000), open: +k[1], high: +k[2], low: +k[3], close: +k[4], volume: +k[5] }; }).sort(function (a, b) { return a.time - b.time; });
+  }
+  function isFb(k) { return !!(FBSYM[k] || k === 'bybit'); }
   function fire(symbol, tf) { try { window.dispatchEvent(new CustomEvent('rtx-fx-refresh', { detail: { symbol: symbol, tf: tf } })); } catch (_) {} }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
   /* শেষ সফল ক্যান্ডেল ফোনে ক্যাশ: পরেরবার চার্ট সঙ্গে সঙ্গে খোলে, পেছনে নতুন ডেটা আসে */
   function ckey(s2, tf) { return 'rtx_fxc_' + s2 + '_' + tf; }
   function cacheGet(s2, tf) { try { var o = JSON.parse(localStorage.getItem(ckey(s2, tf)) || 'null'); if (o && Array.isArray(o.cs) && o.cs.length > 50 && Date.now() - o.t < 3 * 864e5) return o; } catch (_) {} return null; }
   function cachePut(s2, tf, cs) { try { localStorage.setItem(ckey(s2, tf), JSON.stringify({ t: Date.now(), src: LOCK[s2] || 'yahoo', cs: cs.slice(-600) })); } catch (_) {} }
-  function post(s2, tf, cs) { return (tf === '3m' && cs.length > 1 && LOCK[s2] !== 'binance') ? cs.slice(1) : cs; }
+  function post(s2, tf, cs) { return (tf === '3m' && cs.length > 1 && !isFb(LOCK[s2])) ? cs.slice(1) : cs; }
   async function bgRefresh(symbol, tf, limit) {
     var k = symbol + '|' + tf; if (BG[k]) return; BG[k] = 1;
     for (var i = 0; i < 10; i++) {
@@ -141,7 +152,7 @@ window.RTX = window.RTX || {};
   /* ফলব্যাকে নামার পর Yahoo জাগলে নিজে থেকে স্পটে ফিরি (পুরো চার্ট নতুন করে লোড, তাই সোর্স মিশে না) */
   function probeYahoo(symbol, tf) {
     var n = 0, iv = setInterval(async function () {
-      if (++n > 24 || LOCK[symbol] !== 'binance') { clearInterval(iv); return; }
+      if (++n > 24 || !isFb(LOCK[symbol])) { clearInterval(iv); return; }
       try { await yh(symbol, tf, 2); clearInterval(iv); delete LOCK[symbol]; say('✅ Yahoo সার্ভার জেগেছে। গোল্ডের স্পট ডেটা (Exness-এর কাছাকাছি) লোড হচ্ছে…'); fire(symbol, tf); } catch (_) {}
     }, 15000);
   }
@@ -158,12 +169,16 @@ window.RTX = window.RTX || {};
     if (FROMCACHE[symbol] === true) tail += ' · ক্যাশ, নতুন ডেটা আসছে…';
     if (FROMCACHE[symbol] === 'fail') tail += ' · ক্যাশ (নতুন ডেটা আনা যায়নি, সার্ভার চেক করো)';
     if (k === 'binance') return 'Binance ফিউচার্স XAUUSDT (স্পট নয়, Exness থেকে তফাত হতে পারে)' + tail;
+    if (k === 'pax') return 'Binance PAXGUSDT (গোল্ড-ব্যাকড টোকেন, স্পটের কাছাকাছি, Exness থেকে সামান্য তফাত)' + tail;
+    if (k === 'bspot') return 'Binance BTCUSDT (BTC/USD-এর কাছাকাছি)' + tail;
+    if (k === 'bybit') return 'Bybit ' + BYSYM[symbol] + ' (পাবলিক ফিড)' + tail;
     if (k === 'td') return 'Twelve Data ' + symbol + tail;
     return 'Yahoo ' + (YSYM[symbol] || [symbol])[0] + (symbol === 'XAU/USD' ? ' (স্পট)' : '') + tail;
   }
   R.data.sourceLabel = srcLabel;
   async function fxOne(symbol, tf, size, endTime, src) {
-    if (src === 'binance') return origK.call(R.data, 'XAUUSDT', tf, size, endTime);
+    if (FBSYM[src]) return origK.call(R.data, FBSYM[src], tf, size, endTime);
+    if (src === 'bybit') return bybitK(symbol, tf, size, endTime);
     if (src === 'td') return td(symbol, tf, size, endTime);
     return yh(symbol, tf, size, endTime);
   }
@@ -182,9 +197,14 @@ window.RTX = window.RTX || {};
       if (lastE) throw lastE;
     }
     catch (e) {
-      if (symbol !== 'XAU/USD') throw e;
-      cs = await fxOne(symbol, tf, size, endTime, 'binance'); LOCK[symbol] = 'binance'; probeYahoo(symbol, tf);
-      setTimeout(function () { say('Yahoo থেকে গোল্ডের স্পট ডেটা আসেনি, তাই Binance XAUUSDT (ফিউচার্স) দেখানো হচ্ছে। দামে সামান্য তফাত থাকতে পারে।'); }, 1500);
+      var fl = FBLIST[symbol]; if (!fl) throw e;
+      var got = false;
+      for (var fi = 0; fi < fl.length && !got; fi++) {
+        try { cs = await fxOne(symbol, tf, size, endTime, fl[fi]); if (cs && cs.length > 1) { LOCK[symbol] = fl[fi]; got = true; } } catch (_) {}
+      }
+      if (!got) throw e;
+      if (proxyUrl()) probeYahoo(symbol, tf);
+      setTimeout(function () { say(symbol + ': Yahoo থেকে ডেটা আসেনি, তাই বিকল্প সোর্স দেখানো হচ্ছে (ডেটা সোর্স লাইনে নাম আছে)। দামে সামান্য তফাত থাকতে পারে।'); }, 1500);
     }
     return cs;
   }
@@ -216,7 +236,7 @@ window.RTX = window.RTX || {};
     }
     try {
       var cs = await lockedFetch(symbol, tf, Math.min(limit || 1000, 1000), endTime);
-      cs = post(symbol, tf, cs); if (!endTime && LOCK[symbol] !== 'binance') cachePut(symbol, tf, cs);
+      cs = post(symbol, tf, cs); if (!endTime && !isFb(LOCK[symbol])) cachePut(symbol, tf, cs);
       setTimeout(function () { paintBadge(symbol); }, 0);
       return applyOff(symbol, cs);
     } catch (e) {
@@ -233,8 +253,8 @@ window.RTX = window.RTX || {};
       if (typeof document === 'undefined' || !document.hidden) {
         try {
           var k = LOCK[symbol];
-          if (k === 'binance') {
-            if (!inner) inner = origL.call(R.data, 'XAUUSDT', tf, function (c) { applyOff(symbol, [c]).forEach(onCandle); }, onStatus);
+          if (FBSYM[k]) {
+            if (!inner) inner = origL.call(R.data, FBSYM[k], tf, function (c) { applyOff(symbol, [c]).forEach(onCandle); }, onStatus);
             return;
           }
           applyOff(symbol, (await lockedFetch(symbol, tf, 2)).slice(-2)).forEach(onCandle); onStatus(true);
