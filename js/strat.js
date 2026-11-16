@@ -1,4 +1,4 @@
-// ফাইলের নাম: strat.js
+// ফাইলের নাম / পাথ: js/strat.js
 // পাথ: js/strat.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — "এক স্ট্র্যাটেজি, পুরো মার্কেট" রানার
    ড্রপডাউন থেকে যে স্ট্র্যাটেজি বাছা হবে, শুধু সেটিই সিগন্যাল দেবে। অন্য কোনো স্ট্র্যাটেজির ভোট মেশানো হয় না।
@@ -31,9 +31,9 @@ window.RTX = window.RTX || {};
 
   /* মোড: ফিল্টারের কড়াকড়ি। (শুরুর মান; আসল ডেটার ফলাফল দেখে ঠিক করার জিনিস) */
   var MODES = {
-    safe: { minScore: 75, minAdx: 22, htf: 'strict', cooldown: 12, volLow: 0.6, volHigh: 2.5, pend: 10, minRoomR: 1.5 },
-    smart: { minScore: 65, minAdx: 18, htf: 'normal', cooldown: 8, volLow: 0.5, volHigh: 3, pend: 8, minRoomR: 1.2 },
-    aggressive: { minScore: 55, minAdx: 0, htf: 'loose', cooldown: 4, volLow: 0.4, volHigh: 3.5, pend: 6, minRoomR: 1.0 }
+    safe: { minScore: 75, minAdx: 22, htf: 'strict', cooldown: 12, volLow: 0.6, volHigh: 2.5, pend: 4, minRoomR: 1.5 },
+    smart: { minScore: 65, minAdx: 18, htf: 'normal', cooldown: 8, volLow: 0.5, volHigh: 3, pend: 4, minRoomR: 1.2 },
+    aggressive: { minScore: 55, minAdx: 0, htf: 'loose', cooldown: 4, volLow: 0.4, volHigh: 3.5, pend: 3, minRoomR: 1.0 }
   };
   var MODE_INFO = {
     safe: { name: 'SAFE (নিরাপদ)', desc: 'স্কোর ৭৫+। বড় টাইমফ্রেম (4H/1H) অন্তত একটা মিলতে হবে, উল্টো থাকলে বাদ। সিগন্যালের মধ্যে ১২ ক্যান্ডেল বিরতি। TP পর্যন্ত কমপক্ষে ১.৫R জায়গা লাগে। ব্রেকআউট/ট্রেন্ড-ফলোতে ADX ≥ ২২ লাগে। সিগন্যাল কম আসে।' },
@@ -113,7 +113,7 @@ window.RTX = window.RTX || {};
       var limit, mode2 = entryMode, entryNote, body = Math.abs(C[m] - O[m]);
       if (entryMode === 'fast') { limit = C[m]; entryNote = 'সিগন্যাল ক্যান্ডেল বন্ধ হওয়ার দামে সঙ্গে সঙ্গে'; }
       else {
-        var back = Math.min(Math.max(0.5 * body, 0.15 * a), 0.6 * a);
+        var back = Math.min(Math.max(0.35 * body, 0.1 * a), 0.4 * a);
         limit = rt(C[m] - d * back);
         entryNote = 'সিগন্যাল ক্যান্ডেলের বডিতে দাম ' + rt(back) + ' পিছিয়ে ' + limit + '-এ এলে লিমিট (না এলে ট্রেড নেবে না)';
       }
