@@ -54,9 +54,13 @@ window.RTX = window.RTX || {};
   /* totalBars = চার্টে মোট বন্ধ ক্যান্ডেল। প্রতিটি ট্রেড তার এন্ট্রি-বার অনুযায়ী ৩ ভাগের একটিতে পড়ে */
   function walkForward(trades, totalBars) {
     var a = Math.floor(totalBars * 0.6), b = Math.floor(totalBars * 0.8);
-    var parts = [[], [], []];
-    trades.forEach(function (t) { parts[t.bar < a ? 0 : t.bar < b ? 1 : 2].push(t); });
-    var res = { train: metrics(parts[0]), val: metrics(parts[1]), test: metrics(parts[2]), bounds: [a, b] };
+    var parts = [[], [], []], purged = 0, lim = [a, b, Infinity];
+    trades.forEach(function (t) {
+      var seg = t.bar < a ? 0 : t.bar < b ? 1 : 2;
+      if (seg < 2 && t.end !== undefined && t.end !== null && t.end >= lim[seg] && closedOf([t]).length) { purged++; return; }   // সীমানা পেরোনো ট্রেড বাদ: এক অংশের ফল অন্য অংশে মিশবে না
+      parts[seg].push(t);
+    });
+    var res = { train: metrics(parts[0]), val: metrics(parts[1]), test: metrics(parts[2]), bounds: [a, b], purged: purged };
     var all = [res.train, res.val, res.test];
     res.enough = all.every(function (x) { return x.n >= 5; });
     res.consistent = res.enough && all.every(function (x) { return x.expR > 0; });
