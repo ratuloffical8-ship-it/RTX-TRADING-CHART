@@ -892,7 +892,7 @@ window.RTX = window.RTX || {};
       var cs = all, ec = effCfg(), info = marketInfo(sym), h = htfStore[sym] || { h4: null, h1: null, d: null }, mode = cfg.htfMode;
       if (!h.h4 && !h.h1 && sec < 14400) mode = 'Off';
       var base = engine(cs, h, Object.assign({}, ec, { enSweep: true, enCrt: true, enWyck: true, enQm: true, enFib: true, perEngine: true }), info, sec, mode);
-      var split = Math.floor(cs.length * 0.65), rows = [], q;
+      var split = Math.floor(cs.length * 0.65), rows = [], q, smcF = null;
       for (q = 0; q < R.strat.ORDER.length; q++) {
         var k = R.strat.ORDER[q];
         put('<div class="note-info">চলছে… ' + (q + 1) + '/' + R.strat.ORDER.length + ' (' + esc(R.strat.DEFS[k].name) + ')</div>');
@@ -900,6 +900,7 @@ window.RTX = window.RTX || {};
         var c2 = Object.assign({}, ec, { strategy: k, engine: k === 'raid' ? 'raid' : 'strat', power: true, noBoard: true, ov: {} });
         var res = R.power.run(cs, base, c2, info, sec, mode), te = R.opt.stats(res.trades, split, cs.length);
         rows.push({ k: k, short: R.strat.DEFS[k].short, b: R.analytics.breakdown(res.trades), tn: te.n, texp: te.exp });
+        if (k === 'smc' && R.smc && R.smc.last) smcF = Object.assign({}, R.smc.last);
       }
       var mk = (ec.mode || 'smart') + '|' + (ec.entryMode === 'fast' ? 'fast' : 'retest'), tfLabel = tfo ? tfo.label || tfo.id : String(sec);
       var store = {}; rows.forEach(function (r) { store[r.k] = r.b; });
@@ -908,6 +909,7 @@ window.RTX = window.RTX || {};
       var days = cs.length > 1 ? Math.max(1, Math.round((cs[cs.length - 1].time - cs[0].time) / 86400)) : 0;
       var html = '<div class="note-info"><b>' + esc(sym) + ' ' + esc(tfLabel) + '</b> · ' + cs.length + ' ক্যান্ডেল (প্রায় ' + days + ' দিন) · মোড ' + esc((ec.mode || 'smart').toUpperCase()) + ' · ' + (ec.entryMode === 'fast' ? 'দ্রুত' : 'রিটেস্ট') + ' এন্ট্রি</div>';
       html += cmpTable(rows, cfg.strategy);
+      if (smcF) html += '<div class="note-info"><b>🔎 SMC ধাপে ধাপে (এই ' + cs.length + ' ক্যান্ডেলে):</b> সুইপ ' + smcF.sweeps + ' → MSS ভাঙা ' + smcF.mssBreak + ' (MSS-এর আগেই মেয়াদ শেষ ' + smcF.expiredNoMss + ') → জোন পাওয়া ' + smcF.zones + ' (জোন নেই ' + smcF.noZone + ', প্রিমিয়ামে বাতিল ' + smcF.notDiscount + ') → জোন ছোঁয়া ' + smcF.touched + ' (জোন ভেঙে বাতিল ' + smcF.invalidated + ', ছোঁয়ার আগে মেয়াদ শেষ ' + smcF.expiredNoEntry + ') → সিগন্যাল ' + smcF.fired + '</div>';
       html += '<div class="note-info">কীভাবে পড়বে: <b>সিগন্যাল</b> = মোট তৈরি হওয়া; <b>এন্ট্রি</b> = আসলে ঢুকেছে; <b>মিস</b> = রিটেস্ট লিমিটে দাম ফেরেনি (লস নয়); <b>চলমান</b> = এখনো শেষ হয়নি। <b>TP1/TP2</b> = শেষ হওয়া ট্রেডের মধ্যে কতটি অন্তত ওই টার্গেট ছুঁয়েছে (জমা গোনা, তাই TP1 ≥ TP2 ≥ TP3)। <b>TP3 ✅</b> = পুরো জয়। <b>BE</b> = TP1 ছুঁয়ে এন্ট্রিতে ফিরে বেরিয়েছে (লাভ-লস ০)। <b>SL ❌</b> = লস। শেষ হওয়া = TP3 + BE + SL + সময়শেষ (<b>TO</b> কলাম: বেশিক্ষণ খোলা থাকায় ক্লোজ দামে বন্ধ)। <b>R/ট্রেড</b> = গড় ফল (SL = −১R)। ইঞ্জিনের নামে চাপলে পুরো হিসাব খুলবে।</div>';
       rows.forEach(function (r) { html += cmpDetail(r, cfg.strategy); });
       html += '<div class="note-info">এটা শুধু এই চার্টে লোড হওয়া ' + cs.length + ' ক্যান্ডেলের পুরোনো হিসাব, ভবিষ্যতের গ্যারান্টি নয়। ট্রেড ৩০-এর কম হলে ফলাফল ভাগ্যও হতে পারে। একটাই মার্কেটে নয়, ৫টা মার্কেটেই চালিয়ে নিচের যোগফল দেখো।</div>';
