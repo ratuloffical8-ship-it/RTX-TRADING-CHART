@@ -1,4 +1,4 @@
-// ফাইলের নাম: optimize.js
+// ফাইলের নাম / পাথ: js/optimize.js (ট্রেন/টেস্ট লিকেজ ঠিক করা ভার্সন)
 // পাথ: js/optimize.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — অটো-সেটআপ (নতুন POWER ইঞ্জিনের জন্য)
    প্রতিটি মার্কেট ও টাইমফ্রেমে মোড, ন্যূনতম স্কোর, TP পর্যন্ত ন্যূনতম জায়গা, TP3 দূরত্ব ও ব্রেক-ইভেন — এই ১৬২টি সংমিশ্রণ পরীক্ষা করে।
@@ -13,7 +13,8 @@ window.RTX = window.RTX || {};
   var MODE_BN = { safe: 'SAFE', smart: 'SMART', aggressive: 'AGGRESSIVE' };
 
   function stats(trades, from, to) {
-    var cl = trades.filter(function (t) { return t.bar >= from && t.bar < to && (t.status === 4 || t.status === 5 || t.status === 6 || t.status === 9); });
+    /* লিকেজ রোধ: ট্রেড সেই অংশেই গোনা হবে যেখানে এন্ট্রি ও শেষ দুটোই পড়ে। সীমানা পেরোনো ট্রেড (ট্রেনিংয়ে শুরু, টেস্টে শেষ) বাদ (purge) */
+    var cl = trades.filter(function (t) { return t.bar >= from && (t.end !== undefined && t.end !== null ? t.end : t.bar) < to && (t.status === 4 || t.status === 5 || t.status === 6 || t.status === 9); });
     var n = cl.length, tp3 = 0, sl = 0, be = 0, tp1 = 0, rSum = 0;
     cl.forEach(function (t) {
       var r = R.analytics.rOf(t); rSum += r;
@@ -48,7 +49,8 @@ window.RTX = window.RTX || {};
           var end = Math.min(combos.length, idx + 8);
           for (; idx < end; idx++) {
             var c = combos[idx], cfg = mkCfg(baseCfg, c), res = P.run(cs, base, cfg, info, tfSec, mode);
-            results.push({ c: c, train: stats(res.trades, 0, split), test: stats(res.trades, split, n) });
+            var purged = res.trades.filter(function (t) { return t.bar < split && t.end >= split && (t.status === 4 || t.status === 5 || t.status === 6 || t.status === 9); }).length;
+            results.push({ c: c, purged: purged, train: stats(res.trades, 0, split), test: stats(res.trades, split, n) });
           }
           if (onProgress) onProgress(idx / combos.length);
           if (idx < combos.length) setTimeout(chunk, 0); else resolve(finish());
