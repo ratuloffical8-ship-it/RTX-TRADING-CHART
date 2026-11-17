@@ -2,7 +2,7 @@
 // পাথ: js/strat.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — "এক স্ট্র্যাটেজি, পুরো মার্কেট" রানার
    ড্রপডাউন থেকে যে স্ট্র্যাটেজি বাছা হবে, শুধু সেটিই সিগন্যাল দেবে। অন্য কোনো স্ট্র্যাটেজির ভোট মেশানো হয় না।
-   ১২টি স্ট্র্যাটেজি: raid (raid.js-এ) + ULTRA-র ৫টি (sweep, crt, wyck, qm, fib) + XL-এর ৬টি (oc, brk, don, ma, st, ar)।
+   ১৩টি স্ট্র্যাটেজি: raid + smc (smc.js) (raid.js-এ) + ULTRA-র ৫টি (sweep, crt, wyck, qm, fib) + XL-এর ৬টি (oc, brk, don, ma, st, ar)।
    এই ফাইল raid বাদে ১১টি চালায়। সিগন্যাল মোড (safe / smart / aggressive) বদলালে ফিল্টারগুলো বদলায়।
    SL/TP আসে পরীক্ষিত R.trade.plan() থেকে (স্ট্রাকচার/লিকুইডিটি SL, সামনের বাধা দেখে TP)।
    সিগন্যাল শুধু বন্ধ ক্যান্ডেলে। একই ক্যান্ডেলে SL ও TP দুটোই ছুঁলে SL আগে ধরা হয়। */
@@ -13,9 +13,10 @@ window.RTX = window.RTX || {};
   function nn(v) { return v !== null && v !== undefined && !isNaN(v); }
 
   /* ---------- স্ট্র্যাটেজির তালিকা ---------- */
-  var ORDER = ['raid', 'sweep', 'crt', 'wyck', 'qm', 'fib', 'oc', 'brk', 'don', 'ma', 'st', 'ar'];
+  var ORDER = ['raid', 'smc', 'sweep', 'crt', 'wyck', 'qm', 'fib', 'oc', 'brk', 'don', 'ma', 'st', 'ar'];
   var DEFS = {
     raid: { name: 'Liquidity Raid (সুইপ + CISD)', short: 'Raid', group: 'রিভার্সাল', desc: 'দাম আগের হাই/লো-র স্টপ-জমা এলাকায় উইক টেনে ঢুকে ভেতরে ফিরলে, তারপর উল্টো দিকে জোরালো ক্যান্ডেল বন্ধ হলে সিগন্যাল। TP উল্টো দিকের লিকুইডিটিতে। (আলাদা ইঞ্জিন raid.js)' },
+    smc: { name: 'Advanced SMC (সুইপ → MSS → FVG/OB)', short: 'SMC', src: 'smc', group: 'রিভার্সাল', desc: 'ধাপে ধাপে: (১) নিশ্চিত সুইং হাই/লো-র লিকুইডিটি সুইপ ও ভেতরে ফেরা, (২) বড় ডিসপ্লেসমেন্ট ক্যান্ডেলে MSS (উল্টো দিকের সুইং ভাঙা), (৩) ওই মুভের FVG বা OB জোন (ডিসকাউন্ট/প্রিমিয়াম মিলিয়ে), (৪) দাম জোনে ফিরে M5 ক্যান্ডেল অনুকূলে বন্ধ হলে সিগন্যাল। SL সুইপের শেষ প্রান্তের বাইরে। জোন ভাঙলে সেটআপ বাতিল, এক সেটআপে একটাই সিগন্যাল। (smc.js)' },
     sweep: { name: 'Sweep Reclaim', short: 'Sweep', src: 'ultra', idx: 0, group: 'রিভার্সাল', desc: 'দাম আগের সুইং হাই/লো (বা আগের দিনের হাই/লো) ছাড়িয়ে উইক টেনে আবার ভেতরে ফিরে বন্ধ হলো। তারপর ৬ ক্যান্ডেলের মধ্যে উল্টো দিকে জোরালো ক্যান্ডেল (আগের ক্যান্ডেলের হাই/লো ভেঙে) বন্ধ হলে সিগন্যাল। SL সুইপের চূড়ার বাইরে।' },
     crt: { name: 'CRT + TBS', short: 'CRT', src: 'ultra', idx: 1, group: 'রিভার্সাল', desc: 'একটা বড় ক্যান্ডেল (রেঞ্জ ১.৮×ATR-এর বেশি) আছে। পরের কোনো ক্যান্ডেল ওই বড় ক্যান্ডেলের হাই/লো ছাড়িয়ে গিয়ে ফাঁদ তৈরি করে, তারপর পরের ক্যান্ডেল উল্টো দিকে বড় ক্যান্ডেলের ভেতরে ফিরে বন্ধ হলে সিগন্যাল।' },
     wyck: { name: 'Wyckoff + ICT', short: 'Wyckoff', src: 'ultra', idx: 2, group: 'রিভার্সাল', desc: 'দাম কিছুক্ষণ সরু রেঞ্জে (সর্বোচ্চ ৬×ATR) থেকেছে। রেঞ্জের নিচে/ওপরে একবার ফাঁদ (Spring/Upthrust) ফেলে বডি ভেতরে ফিরে এসেছে। তারপর উল্টো দিকে জোরালো ক্যান্ডেল (বডি রেঞ্জের ৫০%+) বন্ধ হলে সিগন্যাল।' },
@@ -68,6 +69,13 @@ window.RTX = window.RTX || {};
       var A = base.arr || {};
       return { sig: (A.engSig && A.engSig[df.idx]) || z, lvl: (A.engLvl && A.engLvl[df.idx]) || null };
     }
+    if (df.src === 'smc') {
+      if (!base._smc || base._smc.n !== n) {
+        var sm = R.smc.signals(P.O, P.H, P.L, P.C, P.atr, n);
+        base._smc = { n: n, sig: sm.sig, lvl: sm.lvl, info: sm.info };
+      }
+      return { sig: base._smc.sig, lvl: base._smc.lvl, info: base._smc.info };
+    }
     return { sig: (P.XL && P.XL[df.idx] && P.XL[df.idx][1]) || z, lvl: null };
   }
 
@@ -75,7 +83,7 @@ window.RTX = window.RTX || {};
   function run(cs, base, cfg, info, tfSec, htfMode) {
     var key = isStrat(cfg.strategy) ? cfg.strategy : 'sweep', df = DEFS[key];
     var P = R.power.prep(cs, base, info, tfSec), SS = prepS(P, info, base), S = SS.S, vsma = SS.vsma, adxA = SS.adx;
-    var src = signalsOf(key, base, P), sig = src.sig, lvArr = src.lvl;
+    var src = signalsOf(key, base, P), sig = src.sig, lvArr = src.lvl, smcInfo = src.info || null;
     var n = P.n, i, k, O = P.O, H = P.H, L = P.L, C = P.C, T = P.T, atr = P.atr, atrAvg = P.atrAvg, h4 = P.h4, h1 = P.h1, V = P.V, e100 = P.e100, vw = P.vw, haC = P.haC, haO = P.haO, ct = P.ct;
     var mk = MODES[cfg.mode] ? cfg.mode : 'smart', M = Object.assign({}, MODES[mk], cfg.ov || {});
     var entryMode = cfg.entryMode === 'fast' ? 'fast' : 'retest';
@@ -85,7 +93,7 @@ window.RTX = window.RTX || {};
     var maxRiskPct = nn(cfg.maxRiskPct) && cfg.maxRiskPct > 0 ? +cfg.maxRiskPct : 10;
     var costOn = cfg.costOn !== false, halfCost = costOn ? (spec.spread / 2 + spec.slip) : 0;
     var tp1R = cfg.tp1R > 0 ? +cfg.tp1R : 1, tp2R = cfg.tp2R > 0 ? +cfg.tp2R : 2, tp3R = cfg.tp3R > 0 ? +cfg.tp3R : 3;
-    var slMode = df.src === 'ultra' && key !== 'fib' ? 'liquidity' : 'auto';
+    var slMode = (df.src === 'ultra' && key !== 'fib') || df.src === 'smc' ? 'liquidity' : 'auto';
     var maxHold = Math.max(6, Math.min(200, Math.round((cfg.maxHoldH > 0 ? +cfg.maxHoldH : 6) * 3600 / tfSec)));   // ট্রেড সর্বোচ্চ কত ক্যান্ডেল খোলা থাকবে
     var trades = [], cur = null, stats = { candidates: 0, signals: 0, rejected: {} }, lastEval = null, lastSigBar = -1e9, lastSl = { '1': -1e9, '-1': -1e9 };
     function rej(kk) { stats.rejected[kk] = (stats.rejected[kk] || 0) + 1; }
@@ -107,7 +115,7 @@ window.RTX = window.RTX || {};
       var lvl = lvArr && nn(lvArr[m]) ? lvArr[m] : null;
       var hc = htfCheck(d, m);
       gate(1, 'htf', 'বড় টাইমফ্রেম (4H/1H) বিরোধী নয়', hc.ok, hc.note);
-      gate(2, 'trigger', df.name + ' ট্রিগার হয়েছে', true, (d === 1 ? 'বুলিশ' : 'বেয়ারিশ') + ' সিগন্যাল ক্যান্ডেল বন্ধ হয়েছে' + (lvl !== null ? ', স্ট্রাকচার লেভেল ' + rt(lvl) : ''));
+      gate(2, 'trigger', df.name + ' ট্রিগার হয়েছে', true, (d === 1 ? 'বুলিশ' : 'বেয়ারিশ') + ' সিগন্যাল ক্যান্ডেল বন্ধ হয়েছে' + (lvl !== null ? ', স্ট্রাকচার লেভেল ' + rt(lvl) : '') + (smcInfo && smcInfo[m] ? ' · সুইপ ' + rt(smcInfo[m].swLvl) + ' ভেঙে ফিরেছে, MSS ' + rt(smcInfo[m].mssLvl) + ' ভেঙেছে, ' + smcInfo[m].zone + ' জোন ' + rt(smcInfo[m].bot) + '–' + rt(smcInfo[m].top) + '-এ ফিরে কনফার্মেশন' : ''));
 
       // এন্ট্রি
       var limit, mode2 = entryMode, entryNote, body = Math.abs(C[m] - O[m]);
