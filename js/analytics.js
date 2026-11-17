@@ -1,4 +1,4 @@
-// ফাইলের নাম: analytics.js
+// ফাইলের নাম / পাথ: js/analytics.js
 // পাথ: js/analytics.js   (GitHub রিপোর রুট থেকে: js ফোল্ডারের ভেতরে)
 /* RTX Chart — পারফরম্যান্স বিশ্লেষণ
    ১) metrics     : জয়ের হার, প্রত্যাশা (Expectancy), Profit Factor, সর্বোচ্চ ড্রডাউন, পরপর লস
@@ -11,9 +11,22 @@ window.RTX = window.RTX || {};
   'use strict';
 
   function closedOf(trades) { return trades.filter(function (t) { return t.status === 4 || t.status === 5 || t.status === 6 || t.status === 9; }); }
+  /* আংশিক ক্লোজ: TP1/TP2/TP3-এ পজিশনের কত % বন্ধ হবে (ডিফল্ট ৫০/৩০/২০, সেটিংসে বদলানো যায়)। [0,0,100] = পুরোনো নিয়ম (সবটা TP3-তে) */
+  var SPLIT = [0.5, 0.3, 0.2];
+  function setSplit(p1, p2, p3) {
+    var a = [+p1, +p2, +p3].map(function (x) { return isFinite(x) && x >= 0 ? x : 0; }), s = a[0] + a[1] + a[2];
+    SPLIT = s > 0 ? a.map(function (x) { return x / s; }) : [0.5, 0.3, 0.2];
+  }
+  /* ট্রেডের মোট বাস্তব R = আগে বন্ধ হওয়া অংশের লাভ + বাকি অংশের ফলাফল (TP3: +r3, SL: −১, BE: ০, সময়শেষ: exitR)। BE-তে ফেরার আগে নেওয়া আংশিক লাভ মুছে যায় না */
   function rOf(t) {
-    var tp3 = t.tpR && t.tpR[2] ? t.tpR[2] : (t.rr3 || 3);
-    return t.status === 4 ? tp3 : t.status === 5 ? -1 : t.status === 6 ? 0 : t.status === 9 ? (t.exitR || 0) : null;
+    var st = t.status; if (st !== 4 && st !== 5 && st !== 6 && st !== 9) return null;
+    var tr = t.tpR && t.tpR.length >= 3 ? t.tpR : [1, 2, t.rr3 || 3];
+    var evs = t.events || [], has2 = st === 4 || evs.some(function (e) { return e.type === 'TP2' || e.type === 'TP3'; });
+    var has1 = st === 4 || !!t.tp1Hit || has2;
+    var banked = (has1 ? SPLIT[0] * tr[0] : 0) + (has2 ? SPLIT[1] * tr[1] : 0);
+    var rem = 1 - (has1 ? SPLIT[0] : 0) - (has2 ? SPLIT[1] : 0);
+    var ex = st === 4 ? tr[2] : st === 5 ? -1 : st === 6 ? 0 : (t.exitR || 0);
+    return banked + rem * ex;
   }
 
   function metrics(trades) {
@@ -137,5 +150,5 @@ window.RTX = window.RTX || {};
     return o;
   }
 
-  R.analytics = { metrics: metrics, walkForward: walkForward, monteCarlo: monteCarlo, verdict: verdict, rOf: rOf, closedOf: closedOf, breakdown: breakdown, addBreakdown: addBreakdown };
+  R.analytics = { metrics: metrics, walkForward: walkForward, monteCarlo: monteCarlo, verdict: verdict, rOf: rOf, setSplit: setSplit, closedOf: closedOf, breakdown: breakdown, addBreakdown: addBreakdown };
 })(window.RTX);
