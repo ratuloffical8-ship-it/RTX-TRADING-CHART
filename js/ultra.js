@@ -17,7 +17,7 @@ window.RTX = window.RTX || {};
     showHist: true, maxHist: 10,
     power: true, gUltra: true, gXl: true, gUt: true, gJdt: true, pwVotes: 2, pwWin: 3, pwMinScore: 70, pwHtf: true, autoOpt: true,
     xOC: true, xBrk: true, xDon: true, xMA: true, xST: true, xAr: true,
-    mode: 'smart', engine: 'raid', strategy: 'raid', entryMode: 'retest', maxRiskPct: 10, maxHoldH: 6, lotMode: 'fixed', lot: 0.01, costOn: true, specs: {}, newsBlocks: []
+    mode: 'smart', engine: 'raid', strategy: 'raid', entryMode: 'retest', maxRiskPct: 10, maxHoldH: 6, tp1Pct: 50, tp2Pct: 30, tp3Pct: 20, lotMode: 'fixed', lot: 0.01, costOn: true, specs: {}, newsBlocks: []
   };
   var ENG = ['Sweep Reclaim', 'CRT + TBS', 'Wyckoff + ICT', 'QM + SMC', 'Price Action + Fib'];
   var SHORT = { 'Sweep Reclaim': 'Sweep', 'CRT + TBS': 'CRT', 'Wyckoff + ICT': 'Wyckoff', 'QM + SMC': 'QM', 'Price Action + Fib': 'Fib' };
@@ -63,11 +63,25 @@ window.RTX = window.RTX || {};
     while (lo <= hi) { var m = (lo + hi) >> 1; if (arr[m] <= x) { r = m; lo = m + 1; } else hi = m - 1; }
     return r;
   }
+  /* সেশন সময় লন্ডন ও নিউ ইয়র্কের স্থানীয় ঘড়ি ধরে (গ্রীষ্মকালীন সময় DST নিজে থেকে মেলে) */
+  var TZC = {};
+  function tzOffMin(tz, t) {
+    var day = Math.floor(t / 86400), k = tz + day;
+    if (TZC[k] !== undefined) return TZC[k];
+    var off = 0;
+    try {
+      var p = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric' }).formatToParts(new Date((day * 86400 + 43200) * 1000)), o = {};
+      p.forEach(function (x) { o[x.type] = +x.value; });
+      off = Math.round((Date.UTC(o.year, o.month - 1, o.day, o.hour, o.minute) / 1000 - (day * 86400 + 43200)) / 60);
+    } catch (_) { off = tz === 'Europe/London' ? 0 : -300; }
+    TZC[k] = off; return off;
+  }
   function sessOf(t, tfSec, info, cfg) {
     var raw, name;
     if (tfSec >= 86400) { raw = true; name = 'n/a (D/W)'; return { ok: true, name: name }; }
     var m = Math.floor((t % 86400) / 60);
-    var lon = m >= 420 && m < 960, ny = m >= 750 && m < 1260, tok = m >= 0 && m < 540;
+    var lm = ((m + tzOffMin('Europe/London', t)) % 1440 + 1440) % 1440, nm = ((m + tzOffMin('America/New_York', t)) % 1440 + 1440) % 1440;
+    var lon = lm >= 420 && lm < 960, ny = nm >= 450 && nm < 960, tok = m >= 0 && m < 540;
     raw = lon || ny || (info.isJPY && tok);
     name = info.isCrypto ? '24/7' : (lon && ny) ? 'London+NY' : lon ? 'London' : ny ? 'New York' : (info.isJPY && tok) ? 'Tokyo' : 'Off-session';
     return { ok: !cfg.useSess || info.isCrypto || raw, name: name };
@@ -416,6 +430,7 @@ window.RTX = window.RTX || {};
   }
 
   function recompute(silent) {
+    if (R.analytics && R.analytics.setSplit) R.analytics.setSplit(cfg.tp1Pct, cfg.tp2Pct, cfg.tp3Pct);
     var info = marketInfo(cur.sym), ec = effCfg();
     if (!cfg.on) { R.chart.setMarkers([]); R.chart.setOverlay(null); state.res = null; state.warn = ''; paint(); return; }
     var all = R.chart.candles(), sn = sanitize(all); all = sn.cs;
@@ -682,6 +697,9 @@ window.RTX = window.RTX || {};
     ['entryMode', 'select', 'এন্ট্রির ধরন', [['retest', 'রিটেস্ট এন্ট্রি — দাম একটু ফিরলে লিমিট (SL-এর দূরত্ব ছোট, কিছু ট্রেড মিস হয়)'], ['fast', 'দ্রুত এন্ট্রি — সিগন্যাল ক্যান্ডেল বন্ধ হতেই (প্রায় সব ট্রেড ধরা পড়ে)']]],
     ['maxRiskPct', 'num', 'এক ট্রেডে সর্বোচ্চ ঝুঁকি (ব্যালেন্সের %)', 0.5, 50],
     ['maxHoldH', 'num', 'ট্রেড সর্বোচ্চ কত ঘণ্টা খোলা থাকবে (এর পর ক্লোজ দামে বন্ধ, নতুন সিগন্যাল আসতে পারে)', 1, 72],
+    ['tp1Pct', 'num', 'TP1-এ কত % পজিশন বন্ধ (R-এর হিসাবে)', 0, 100],
+    ['tp2Pct', 'num', 'TP2-এ কত % পজিশন বন্ধ', 0, 100],
+    ['tp3Pct', 'num', 'TP3-এ কত % পজিশন বন্ধ (তিনটার যোগফল ১০০ না হলে অনুপাত ধরা হয়)', 0, 100],
     ['mode', 'select', 'সিগন্যাল মোড', [['safe', 'SAFE — কম কিন্তু সেরা'], ['smart', 'SMART — ভারসাম্য'], ['aggressive', 'AGGRESSIVE — বেশি সিগন্যাল']]],
     ['costOn', 'bool', 'স্প্রেড ও স্লিপেজ খরচ হিসাবে ধরো'], ['useSess', 'bool', 'সেশন ফিল্টার (সোনায়)'], ['volFilter', 'bool', 'ভোলাটিলিটি ফিল্টার']
   ];
@@ -713,7 +731,7 @@ window.RTX = window.RTX || {};
     var info = marketInfo(cur.sym || 'XAUUSDT'), spec = R.trade.specFor(info, cfg), h = '';
     h += '<div class="card"><div class="row"><label><input type="checkbox" id="ul-on"' + (cfg.on ? ' checked' : '') + '><span>চার্টে সিগন্যাল চালু</span></label></div></div>';
     h += stratCardHtml();
-    h += '<div class="card"><b>💰 অ্যাকাউন্ট ও লট</b><div class="fgrid">' + SFIELDS.filter(function (x) { return ['balance', 'lot', 'riskPct', 'maxRiskPct', 'maxHoldH'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '</div>' + SFIELDS.filter(function (x) { return ['lotMode', 'entryMode', 'mode'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '<div id="set-prev">' + previewHtml() + '</div></div>';
+    h += '<div class="card"><b>💰 অ্যাকাউন্ট ও লট</b><div class="fgrid">' + SFIELDS.filter(function (x) { return ['balance', 'lot', 'riskPct', 'maxRiskPct', 'maxHoldH', 'tp1Pct', 'tp2Pct', 'tp3Pct'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '</div>' + SFIELDS.filter(function (x) { return ['lotMode', 'entryMode', 'mode'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '<div id="set-prev">' + previewHtml() + '</div></div>';
     h += '<div class="card"><b>📐 ' + esc(info.sym) + ' — ব্রোকারের মান</b><div class="muted" style="font-size:12px;margin:4px 0 8px">Exness-এর স্পেসিফিকেশন দেখে মিলিয়ে নাও। ভুল হলে ডলারের হিসাবও ভুল আসবে।</div><div class="fgrid">' +
       [['cSize', 'কন্ট্রাক্ট সাইজ (১ লট = কত একক)'], ['spread', 'স্প্রেড (দামের এককে)'], ['slip', 'স্লিপেজ (দামের এককে)']].map(function (x) { return '<label class="field"><span>' + x[1] + '</span><input type="number" inputmode="decimal" step="any" data-sk="' + x[0] + '" value="' + spec[x[0]] + '"></label>'; }).join('') + '</div>' +
       SFIELDS.filter(function (x) { return ['costOn', 'useSess', 'volFilter'].indexOf(x[0]) >= 0; }).map(fieldHtml).join('') + '</div>';
@@ -742,6 +760,7 @@ window.RTX = window.RTX || {};
   /* ---------- অটো-সেটআপ ---------- */
   var lastOpt = null, optBusy = false;
   async function runOpt() {
+    if (R.analytics && R.analytics.setSplit) R.analytics.setSplit(cfg.tp1Pct, cfg.tp2Pct, cfg.tp3Pct);
     if (optBusy) return;
     optBusy = true; var sym = cur.sym, sec = cur.sec, key = optKey();
     function put(html) { optHtml = html; var o = $('ul-optres'); if (o && TAB === 'perf') o.innerHTML = html; }
@@ -826,6 +845,7 @@ window.RTX = window.RTX || {};
     return '<div class="card"><b>📊 সব মার্কেট মিলিয়ে (সংরক্ষিত রান)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মোড ও এন্ট্রি ধরনে যেসব মার্কেট/টাইমফ্রেমে "তুলনা করো" চালানো হয়েছে সেগুলোর যোগফল: ' + names + '। আরও মার্কেটে চালালে এখানে যোগ হবে।</div>' + cmpTable(rows, cfg.strategy) + '<div class="btnrow"><button class="btn" id="ul-cmpclr">সংরক্ষিত রান মুছো</button></div></div>';
   }
   async function runCompare() {
+    if (R.analytics && R.analytics.setSplit) R.analytics.setSplit(cfg.tp1Pct, cfg.tp2Pct, cfg.tp3Pct);
     if (cmpBusy || !R.strat) return;
     if (!R.analytics || !R.analytics.breakdown || !R.trade || !R.trade.expire) {   // কিছু ফাইল পুরোনো থেকে গেছে
       var oo = $('ul-cmpres'); cmpHtml = '<div class="note-warn">কিছু ফাইল পুরোনো ভার্সনে আছে। GitHub-এ <b>js/analytics.js</b>, <b>js/trade.js</b>, <b>js/ultra.js</b>, <b>js/strat.js</b>, <b>js/raid.js</b>, <b>js/power.js</b> — সবগুলো নতুন ফাইল দিয়ে বদলাও, Render-এ ডিপ্লয় শেষ হলে সাইট রিফ্রেশ করো।</div>'; if (oo) oo.innerHTML = cmpHtml; return;
