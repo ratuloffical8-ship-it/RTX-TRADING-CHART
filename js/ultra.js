@@ -610,6 +610,25 @@ window.RTX = window.RTX || {};
     return (m < 60 ? m + ' মিনিট' : Math.floor(m / 60) + ' ঘণ্টা ' + (m % 60) + ' মিনিট') + ' আগে' + (d / cur.sec > 120 ? ' (চার্টের বাঁ দিকে সরে গেছে, পিছিয়ে স্ক্রল করলে দেখা যাবে)' : '');
   }
 
+  /* ---------- সবার ওপরের পরিসংখ্যান বক্স (নির্বাচিত স্ট্র্যাটেজি অনুযায়ী) ---------- */
+  function statBox(res, C) {
+    var tr = res.trades || [], A = R.analytics, cl = A.closedOf(tr), w = 0, l = 0, be = 0, gw = 0, gl = 0, net = 0, wait = 0, act = 0, exp = 0, can = 0, i, r, t;
+    for (i = 0; i < cl.length; i++) { r = A.rOf(cl[i]); net += r; if (r > 1e-9) { w++; gw += r; } else if (r < -1e-9) { l++; gl -= r; } else be++; }
+    for (i = 0; i < tr.length; i++) { t = tr[i]; if (t.status === 0) wait++; else if (t.status >= 1 && t.status <= 3) act++; else if (t.status === 8) exp++; else if (t.status === 7) can++; }
+    var wr = (w + l) ? w / (w + l) * 100 : null, pf = gl > 0 ? gw / gl : (gw > 0 ? Infinity : null), last = tr.length ? tr[tr.length - 1] : null;
+    var DF = R.strat && R.strat.DEFS && R.strat.DEFS[cfg.strategy], nm = DF ? DF.short : cfg.strategy;
+    var box = function (k, v, cls) { return '<div class="sbx"><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>'; };
+    var h = '<div class="card"><b>📊 ' + esc(nm) + ' — এই ' + esc(String(cur.sym)) + ' চার্টে</b><div class="sbxg">' +
+      box('মোট সিগন্যাল', tr.length) + box('জয় (Win)', w, 'up') + box('লস (Loss)', l, l ? 'dn' : '') + box('ব্রেক-ইভেন', be) +
+      box('চলমান (Active)', act) + box('লিমিটের অপেক্ষায়', wait) + box('মেয়াদ শেষ (Missed)', exp) + box('বাতিল (Replaced)', can) +
+      box('জয়ের হার', wr === null ? 'N/A' : wr.toFixed(0) + '%', wr !== null && wr >= 50 ? 'up' : wr === null ? '' : 'dn') +
+      box('মোট R', (net >= 0 ? '+' : '') + net.toFixed(2), net > 0 ? 'up' : net < 0 ? 'dn' : '') +
+      box('Profit Factor', pf === null ? 'N/A' : isFinite(pf) ? pf.toFixed(2) : '∞') +
+      box('শেষ সিগন্যাল', last ? ageTxt(last.time).replace(/ \(.*$/, '') : '—') + '</div>' +
+      '<div class="muted" style="font-size:11px;margin-top:6px">জয়ের হার = জয় ÷ (জয় + লস) — ব্রেক-ইভেন, মেয়াদ শেষ ও বাতিল হিসাবে ধরা হয় না। জয়/লস বলা হয় মোট R দেখে (TP1-এর আংশিক লাভসহ)। এটা ব্যাকটেস্ট, ভবিষ্যতের গ্যারান্টি নয়।' + (cl.length < 10 ? ' ⚠️ বন্ধ ট্রেড ' + cl.length + 'টি — নমুনা খুব কম, হারের ওপর ভরসা করো না।' : '') + '</div></div>';
+    return h;
+  }
+
   /* ---------- ট্যাব ১: সিগন্যাল ---------- */
   function sigHtml() {
     if (!cfg.on) return '<div class="card muted">ULTRA বন্ধ আছে। সেটিংস ট্যাবে গিয়ে চালু করো।</div>';
@@ -620,6 +639,7 @@ window.RTX = window.RTX || {};
     var tr = res.trades, t = tr[tr.length - 1], live = t && t.status >= 0 && t.status <= 3, h = '';
     if (cfg.autoOpt && optStore[optKey()]) h += '<div class="note-info" style="margin:0 0 8px">🎯 এই মার্কেট/টাইমফ্রেমে অটো-সেটআপ চালু আছে, তাই মোড ও কিছু মান সেটা থেকে আসছে।</div>';
     if (state.warn) h += '<div class="note-warn" style="margin:0 0 8px">' + esc(state.warn) + '</div>';
+    h += statBox(res, C);
 
     var D = EM(), mk = C.mode || 'smart';
     var al = now.alert;
@@ -664,7 +684,7 @@ window.RTX = window.RTX || {};
     var res = state.res; if (!res) return '<div class="card muted">ডেটা লোড হচ্ছে…</div>';
     var C = state.cfg || cfg, tr = res.trades, A = R.analytics, h = '';
     var m = A.metrics(tr), wf = A.walkForward(tr, res.closed), mc = A.monteCarlo(m.rs, { balance: C.balance, avgRiskUsd: m.avgRiskUsd }), v = A.verdict(m, wf, mc);
-    h += '<div class="card verdict ' + v.level + '"><b>সহজ রায়</b><div>' + esc(v.text) + '</div></div>';
+    h += statBox(res, C) + '<div class="card verdict ' + v.level + '"><b>সহজ রায়</b><div>' + esc(v.text) + '</div></div>';
     h += '<div class="card"><b>মোট হিসাব (লোড করা ক্যান্ডেলে)</b>' + kv('বন্ধ ট্রেড / চলমান', m.n + ' / ' + m.open) + kvh('জয়ের হার (লাভে শেষ)', 'winrate', m.winRate.toFixed(0) + '%') + kv('TP1 ছুঁয়েছে', m.tp1Rate.toFixed(0) + '%') + kv('TP3 পর্যন্ত গেছে', m.tp3Rate.toFixed(0) + '%') + kv('SL হিট', m.slRate.toFixed(0) + '%', 'dn') + kv('ব্রেক-ইভেন', m.beRate.toFixed(0) + '%') +
       kvh('প্রত্যাশা (প্রতি ট্রেডে)', 'expectancy', (m.expR >= 0 ? '+' : '') + m.expR.toFixed(2) + 'R', m.expR > 0 ? 'up' : m.n ? 'dn' : '') + kvh('Profit Factor', 'pf', isFinite(m.pf) ? m.pf.toFixed(2) : '∞') + kv('মোট R', (m.totalR >= 0 ? '+' : '') + m.totalR.toFixed(1) + 'R') +
       (m.totalUsd !== null ? kv('মোট লাভ/ক্ষতি (ডলারে)', money(m.totalUsd, true), m.totalUsd >= 0 ? 'up' : 'dn') : '') + kvh('সর্বোচ্চ ড্রডাউন', 'dd', m.maxDDR.toFixed(1) + 'R' + (m.maxDDUsd !== null ? ' = ' + money(m.maxDDUsd) : '')) + kv('পরপর সর্বোচ্চ লস', String(m.maxLossStreak)) + '</div>';
