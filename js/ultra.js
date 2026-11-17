@@ -617,8 +617,9 @@ window.RTX = window.RTX || {};
     for (i = 0; i < tr.length; i++) { t = tr[i]; if (t.status === 0) wait++; else if (t.status >= 1 && t.status <= 3) act++; else if (t.status === 8) exp++; else if (t.status === 7) can++; }
     var wr = (w + l) ? w / (w + l) * 100 : null, pf = gl > 0 ? gw / gl : (gw > 0 ? Infinity : null), last = tr.length ? tr[tr.length - 1] : null;
     var DF = R.strat && R.strat.DEFS && R.strat.DEFS[cfg.strategy], nm = DF ? DF.short : cfg.strategy;
+    var cc = R.chart.candles(), nC = cc.length, nD = nC > 1 ? Math.max(1, Math.round((cc[nC - 1].time - cc[0].time) / 86400)) : 0;
     var box = function (k, v, cls) { return '<div class="sbx"><span>' + k + '</span><b' + (cls ? ' class="' + cls + '"' : '') + '>' + v + '</b></div>'; };
-    var h = '<div class="card"><b>📊 ' + esc(nm) + ' — এই ' + esc(String(cur.sym)) + ' চার্টে</b><div class="sbxg">' +
+    var h = '<div class="card"><b>📊 ' + esc(nm) + ' — এই ' + esc(String(cur.sym)) + ' চার্টে</b> <span class="muted" style="font-size:11px">(লোড করা ' + nC + ' ক্যান্ডেল ≈ ' + nD + ' দিন; পুরোনো তুলনা টেবিলে বেশি ক্যান্ডেল থাকে, তাই সংখ্যা আলাদা)</span><div class="sbxg">' +
       box('মোট সিগন্যাল', tr.length) + box('জয় (Win)', w, 'up') + box('লস (Loss)', l, l ? 'dn' : '') + box('ব্রেক-ইভেন', be) +
       box('চলমান (Active)', act) + box('লিমিটের অপেক্ষায়', wait) + box('মেয়াদ শেষ (Missed)', exp) + box('বাতিল (Replaced)', can) +
       box('জয়ের হার', wr === null ? 'N/A' : wr.toFixed(0) + '%', wr !== null && wr >= 50 ? 'up' : wr === null ? '' : 'dn') +
@@ -697,12 +698,16 @@ window.RTX = window.RTX || {};
       var rj = res.stats.rejected, RJ = EM().REJ_BN, keys = Object.keys(rj).sort(function (a, b) { return rj[b] - rj[a]; });
       h += '<div class="card"><b>সিস্টেম কতগুলো সুযোগ বাতিল করেছে</b>' + kv('প্রার্থী সুযোগ', String(res.stats.candidates)) + kv('সিগন্যাল হয়েছে', String(res.stats.signals), 'up') + keys.map(function (k) { return kv('বাতিল: ' + esc(RJ[k] || k), String(rj[k])); }).join('') + '<div class="note-info">বেশিরভাগ সুযোগ বাতিল হওয়াই স্বাভাবিক। এটাই সিগন্যালের মান বাঁচায়।</div></div>';
     }
+      if (cfg.strategy === 'smc' && R.smc && R.smc.last) {
+        var F = R.smc.last;
+        h += '<div class="card"><b>🔎 SMC ধাপে ধাপে কতগুলো টিকলো</b>' + kv('১) লিকুইডিটি সুইপ পাওয়া গেছে', String(F.sweeps)) + kv('২) MSS (ডিসপ্লেসমেন্টসহ) হয়েছে', String(F.mssBreak)) + kv('   সময় শেষ, MSS হয়নি', String(F.expiredNoMss)) + kv('৩) FVG/OB জোন পাওয়া গেছে', String(F.zones)) + kv('   জোন পাওয়া যায়নি', String(F.noZone)) + kv('   প্রিমিয়াম/ডিসকাউন্টে মেলেনি', String(F.notDiscount)) + kv('৪) দাম জোনে ফিরেছে', String(F.touched)) + kv('   জোন ভেঙে বাতিল', String(F.invalidated)) + kv('   ফেরেনি/কনফার্মেশন আসেনি', String(F.expiredNoEntry)) + kv('৫) সিগন্যাল তৈরি', String(F.fired), 'up') + '<div class="muted" style="font-size:11px;margin-top:6px">এটা SMC-র নিজের ফানেল (গেটের আগে)। এরপর HTF/TP-র জায়গা/SL দূরত্বের গেটে আরও কিছু বাদ যেতে পারে — ওপরের "সুযোগ বাতিল" কার্ডে দেখো।</div></div>';
+      }
     if (res.board) {
       h += '<div class="card"><b>📊 স্ট্র্যাটেজি স্কোরবোর্ড</b> <span class="muted">(SL 1.5×ATR, TP 2R)</span>';
       res.board.forEach(function (r) { h += kv(esc(r.name), r.n ? r.n + ' ট্রেড · জয় ' + r.win.toFixed(0) + '% · ' + (r.exp >= 0 ? '+' : '') + r.exp.toFixed(2) + 'R' : '—', r.n && r.exp > 0 ? 'up' : r.n ? 'dn' : ''); });
       h += '<div class="note-info">জয় ৩৩%-এর বেশি ও +R হলে ২R টার্গেটে লাভজনক ছিল।</div></div>';
     }
-    h += '<div class="card"><b>🔬 ' + R.strat.ORDER.length + 'টি ইঞ্জিনের ফলাফল (এই মার্কেট ও টাইমফ্রেমে)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">বর্তমান মোড ও এন্ট্রি ধরনে প্রতিটি ইঞ্জিন আলাদা চালিয়ে দেখায়: কয়টি সিগন্যাল এলো, কয়টি TP1/TP2/TP3 ছুঁলো, কয়টি SL খেলো, কয়টি জয়-লস। পুরোনো প্রায় ৬০০০ ক্যান্ডেল পর্যন্ত লোড করে (কয়েক সেকেন্ড লাগে)।</div><div class="btnrow"><button class="btn primary" id="ul-cmp">তুলনা করো</button></div><div id="ul-cmpres">' + cmpHtml + '</div></div>';
+    h += '<div class="card"><b>🔬 ' + R.strat.ORDER.length + 'টি ইঞ্জিনের ফলাফল (এই মার্কেট ও টাইমফ্রেমে)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">বর্তমান মোড ও এন্ট্রি ধরনে প্রতিটি ইঞ্জিন আলাদা চালিয়ে দেখায়: কয়টি সিগন্যাল এলো, কয়টি TP1/TP2/TP3 ছুঁলো, কয়টি SL খেলো, কয়টি জয়-লস। পুরোনো প্রায় ৬০০০ ক্যান্ডেল পর্যন্ত লোড করে (কয়েক সেকেন্ড লাগে)।</div><div class="btnrow"><button class="btn primary" id="ul-cmp">তুলনা করো</button> <button class="btn" id="ul-cmp2" style="margin-top:6px;width:100%">🔎 গভীর তুলনা (প্রায় ৭০ দিন — বেশি সময় লাগে, ট্রেড বেশি পাওয়া যায়)</button></div><div id="ul-cmpres">' + cmpHtml + '</div></div>';
     h += '<div class="card"><b>🎯 অটো-সেটআপ</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মার্কেট ও টাইমফ্রেমে ' + (R.opt ? R.opt.combosFor(cfg.engine) : '') + 'টি সেটিং পরীক্ষা করে সেরাটা শেষ ৩৫% অদেখা ডেটায় যাচাই করে। কয়েক সেকেন্ড লাগে।</div><div class="btnrow"><button class="btn primary" id="ul-opt">খোঁজো</button><button class="btn" id="ul-optoff">অটো-সেটআপ মুছো</button></div><div id="ul-optres">' + optHtml + '</div></div>';
     h += '<div class="note-info">সব হিসাব শুধু এই চার্টে এখন যে ক্যান্ডেল লোড আছে তার। পুরোনো ফল ভবিষ্যতের গ্যারান্টি নয়। আসল টাকায় আগে ডেমোতে যাচাই করো।</div>';
     return h;
@@ -864,7 +869,7 @@ window.RTX = window.RTX || {};
     var names = keys.map(function (kk) { return esc(cmpStore[kk].label); }).join(', ');
     return '<div class="card"><b>📊 সব মার্কেট মিলিয়ে (সংরক্ষিত রান)</b><div class="muted" style="font-size:12px;margin:4px 0 8px">এই মোড ও এন্ট্রি ধরনে যেসব মার্কেট/টাইমফ্রেমে "তুলনা করো" চালানো হয়েছে সেগুলোর যোগফল: ' + names + '। আরও মার্কেটে চালালে এখানে যোগ হবে।</div>' + cmpTable(rows, cfg.strategy) + '<div class="btnrow"><button class="btn" id="ul-cmpclr">সংরক্ষিত রান মুছো</button></div></div>';
   }
-  async function runCompare() {
+  async function runCompare(depth) {
     if (R.analytics && R.analytics.setSplit) R.analytics.setSplit(cfg.tp1Pct, cfg.tp2Pct, cfg.tp3Pct);
     if (cmpBusy || !R.strat) return;
     if (!R.analytics || !R.analytics.breakdown || !R.trade || !R.trade.expire) {   // কিছু ফাইল পুরোনো থেকে গেছে
@@ -876,7 +881,9 @@ window.RTX = window.RTX || {};
       var all = R.chart.candles().slice(0, -1), pages = 0, tfo = R.TFS.filter(function (t) { return t.sec === sec; })[0];
       if (all.length < 100) { put('<div class="note-warn">তুলনার জন্য কমপক্ষে ১০০ ক্যান্ডেল লাগে (এখন ' + all.length + ')।</div>'); cmpBusy = false; return; }
       put('<div class="note-info">পুরোনো ইতিহাস লোড হচ্ছে…</div>');
-      while (pages < 5 && tfo && all.length) {
+      var maxPages = depth > 5 ? Math.min(depth, 30) : 5;
+      while (pages < maxPages && tfo && all.length) {
+        if (pages > 0 && pages % 3 === 0) put('<div class="note-info">পুরোনো ইতিহাস লোড হচ্ছে… ' + all.length + ' ক্যান্ডেল</div>');
         var more = await R.data.klines(sym, tfo.id, 1000, all[0].time * 1000 - 1).catch(function () { return []; });
         more = more.filter(function (c) { return c.time < all[0].time; });
         if (!more.length) break; all = more.concat(all); pages++;
@@ -944,6 +951,7 @@ window.RTX = window.RTX || {};
       if (d.mode) { setMode(d.mode); return; }
       if (id === 'ul-opt') { runOpt(); return; }
       if (id === 'ul-cmp') { runCompare(); return; }
+      if (id === 'ul-cmp2') { runCompare(20); return; }
       if (id === 'ul-cmpclr') { cmpStore = {}; lsSet('rtx_cmp_store', cmpStore); cmpHtml = '<div class="note-info">সংরক্ষিত রান মুছে গেছে।</div>'; var oo = $('ul-cmpres'); if (oo) oo.innerHTML = cmpHtml; return; }
       if (d.pick) { setStrategy(d.pick); renderSheet(); return; }
       if (id === 'ul-optoff') { delete optStore[optKey()]; lsSet('rtx_ultra_opt', optStore); optHtml = '<div class="note-info">এই মার্কেটের অটো-সেটআপ মুছে গেছে।</div>'; sched(0, true); renderSheet(); return; }
