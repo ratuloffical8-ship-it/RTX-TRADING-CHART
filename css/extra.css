@@ -1,4 +1,4 @@
-/* ফাইলের নাম: extra.css */
+/* ফাইলের নাম / পাথ: css/extra.css */
 /* পাথ: css/extra.css   (GitHub রিপোর রুট থেকে: css ফোল্ডারের ভেতরে) */
 /* RTX Chart — ব্যাচ ২ এর অতিরিক্ত স্টাইল (style.css এর পরে লোড হয়) */
 
@@ -92,3 +92,11 @@ details.fold .fbody{padding:0 12px 12px}
 .rtab th:first-child,.rtab td:first-child{text-align:left;position:sticky;left:0;background:#0a0a0a;z-index:1}
 .rtab tr.sel td{background:#0d1a2b}
 .rtab td.up{color:#3b9cff;font-weight:700}.rtab td.dn{color:#ff6b6b;font-weight:700}
+
+/* ওপরের পরিসংখ্যান বক্স */
+.sbxg{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:8px}
+.sbx{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.sbx span{font-size:10.5px;opacity:.7;line-height:1.2}
+.sbx b{font-size:14px}
+.sbx b.up{color:#26a69a}.sbx b.dn{color:#ef5350}
+@media(min-width:520px){.sbxg{grid-template-columns:repeat(4,1fr)}}
