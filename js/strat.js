@@ -10,6 +10,9 @@ window.RTX = window.RTX || {};
 (function (R) {
   'use strict';
 
+  /* index.html পুরোনো থাকলেও smc.js নিজে থেকে লোড হোক (ফাইলটা সার্ভারে থাকলে) */
+  if (!R.smc && typeof document !== 'undefined' && document.head) { try { var sc = document.createElement('script'); sc.src = 'js/smc.js'; document.head.appendChild(sc); } catch (_) {} }
+
   function nn(v) { return v !== null && v !== undefined && !isNaN(v); }
 
   /* ---------- স্ট্র্যাটেজির তালিকা ---------- */
@@ -70,6 +73,7 @@ window.RTX = window.RTX || {};
       return { sig: (A.engSig && A.engSig[df.idx]) || z, lvl: (A.engLvl && A.engLvl[df.idx]) || null };
     }
     if (df.src === 'smc') {
+      if (!R.smc) throw new Error('SMC ফাইল (js/smc.js) সাইটে লোড হয়নি — রিপোতে js/smc.js যোগ করো ও index.html রিপ্লেস করো, তারপর রিফ্রেশ দাও');
       if (!base._smc || base._smc.n !== n) {
         var sm = R.smc.signals(P.O, P.H, P.L, P.C, P.atr, n);
         base._smc = { n: n, sig: sm.sig, lvl: sm.lvl, info: sm.info };
